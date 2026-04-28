@@ -82,26 +82,27 @@ def build_ui():
                 scale=1,
             )
 
+        pending_upload = gr.State(None)
+
         async def user_message(message, file, chat_history):
-            file_path = file if file else None
             chat_history = chat_history + [[message, None]]
-            return "", None, chat_history
+            return "", None, chat_history, file
 
         async def bot_response(chat_history, file):
             user_msg = chat_history[-1][0]
             history = chat_history[:-1]
             response = await respond(user_msg, history, file)
             chat_history[-1][1] = response
-            return chat_history
+            return chat_history, None
 
         msg.submit(
             user_message,
             [msg, upload, chatbot],
-            [msg, upload, chatbot],
+            [msg, upload, chatbot, pending_upload],
         ).then(
             bot_response,
-            [chatbot, upload],
-            [chatbot],
+            [chatbot, pending_upload],
+            [chatbot, pending_upload],
         )
 
     return demo

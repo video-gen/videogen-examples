@@ -30,6 +30,7 @@ WEBHOOK_SECRET = os.environ.get("VIDEOGEN_WEBHOOK_SECRET", "")
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "http://localhost:8000")
 
 jobs: dict[str, JobStatus] = {}
+job_callbacks: dict[str, str] = {}
 
 # Maps tool_execution_id -> job_id for webhook routing
 execution_to_job: dict[str, str] = {}
@@ -56,7 +57,7 @@ app = FastAPI(
 
 
 @app.get("/voices", response_model=list[VoiceInfo])
-async def list_voices():
+def list_voices():
     """List available TTS voices."""
     response = client.resources.get_tts_voices()
     return [
@@ -70,7 +71,7 @@ async def list_voices():
 
 
 @app.get("/presenters", response_model=list[PresenterInfo])
-async def list_presenters():
+def list_presenters():
     """List available avatar presenters."""
     response = client.resources.get_avatar_presenters()
     return [
@@ -83,7 +84,7 @@ async def list_presenters():
 
 
 @app.post("/generate-avatar", response_model=JobStatus)
-async def generate_avatar(req: GenerateAvatarRequest):
+def generate_avatar(req: GenerateAvatarRequest):
     """
     Start a talking avatar generation pipeline:
     1. Generate speech from text (TTS)
@@ -122,9 +123,7 @@ async def generate_avatar(req: GenerateAvatarRequest):
 
     # Store callback URL if provided
     if req.callback_url:
-        jobs[f"{job_id}:callback"] = JobStatus(
-            job_id=job_id, status=req.callback_url
-        )
+        job_callbacks[job_id] = req.callback_url
 
     return job
 
@@ -170,8 +169,10 @@ async def handle_webhook(request: Request):
         return {"status": "ignored", "reason": "unknown execution"}
 
     job = jobs[job_id]
+    is_terminal_event = False
 
     if event == "tool_execution.succeeded":
+        is_terminal_event = True
         job.status = "succeeded"
         results = payload.get("results", [])
         if results:
@@ -179,27 +180,30 @@ async def handle_webhook(request: Request):
             download_source = file_data.get("downloadSource", {})
             job.result_url = download_source.get("url")
 
-        # Forward to user's callback URL if configured
-        callback_key = f"{job_id}:callback"
-        if callback_key in jobs:
-            callback_url = jobs[callback_key].status
-            async with httpx.AsyncClient() as http:
-                await http.post(
-                    callback_url,
-                    json=job.model_dump(),
-                    timeout=10.0,
-                )
-            del jobs[callback_key]
-
     elif event == "tool_execution.failed":
+        is_terminal_event = True
         job.status = "failed"
         job.error = "Avatar generation failed"
 
     elif event == "tool_execution.cancelled":
+        is_terminal_event = True
         job.status = "cancelled"
 
-    # Clean up the mapping
-    del execution_to_job[execution_id]
+    if is_terminal_event:
+        callback_url = job_callbacks.pop(job_id, None)
+        if callback_url:
+            try:
+                async with httpx.AsyncClient() as http:
+                    await http.post(
+                        callback_url,
+                        json=job.model_dump(),
+                        timeout=10.0,
+                    )
+            except Exception as exc:
+                print(f"Failed to forward callback for job {job_id}: {exc}")
+
+        # Clean up the mapping
+        execution_to_job.pop(execution_id, None)
 
     return {"status": "processed"}
 
