@@ -6,11 +6,11 @@ Full-stack example apps demonstrating the [VideoGen API](https://videogen.docs.b
 
 ## Examples
 
-| Example | Stack | Use case |
-| --- | --- | --- |
-| [AI Social Content Generator](./ai-social-content/) | Next.js 15, Vercel AI SDK, TypeScript SDK | AI agent decides what media to generate from a topic |
-| [Talking Avatar Webhook Server](./talking-avatar-webhook/) | FastAPI, Python SDK | Production webhook pipeline: text → speech → avatar video |
-| [AI Image Editor](./ai-image-editor/) | OpenAI Agents SDK, Python SDK, Gradio | Conversational image generation and transformation |
+| Example                                                    | Stack                                     | Use case                                                  |
+| ---------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| [AI Social Content Generator](./ai-social-content/)        | Next.js 15, Vercel AI SDK, TypeScript SDK | AI agent decides what media to generate from a topic      |
+| [Talking Avatar Webhook Server](./talking-avatar-webhook/) | FastAPI, Python SDK                       | Production webhook pipeline: text → speech → avatar video |
+| [AI Image Editor](./ai-image-editor/)                      | OpenAI Agents SDK, Python SDK, Gradio     | Conversational image generation and transformation        |
 
 ## Quick start
 
@@ -23,18 +23,6 @@ cd videogen-examples
 ```
 
 3. Pick an example and follow its README.
-
-## Coverage
-
-| Dimension | AI Social Content | Talking Avatar Webhook | AI Image Editor |
-| --- | --- | --- | --- |
-| SDK | TypeScript | Python | Python |
-| Agentic framework | Vercel AI SDK | None (vanilla) | OpenAI Agents SDK |
-| Web framework | Next.js | FastAPI | Gradio |
-| Async pattern | Polling | Webhooks | Polling |
-| Video embedding | Yes (player-react) | No | No |
-| File upload | No | Yes (audio) | Yes (images) |
-| Deploy target | Vercel | Docker / Railway | HF Spaces |
 
 ## Documentation
 
