@@ -6,9 +6,17 @@ Each tool wraps a VideoGen SDK call and returns the hydrated file URL.
 
 import os
 
-from videogen import VideoGenApi, poll_executed_tool
+from videogen import VideoGenApi, poll_executed_tool, upload_file
 
 client = VideoGenApi(token=os.environ["VIDEOGEN_API_KEY"])
+
+
+def _hydrated_download_url(hydrated) -> str | None:
+    ds = getattr(hydrated, "download_source", None)
+    if ds is None:
+        return None
+    url = getattr(ds, "url", None)
+    return url if isinstance(url, str) else None
 
 
 def generate_image(prompt: str) -> dict:
@@ -28,7 +36,7 @@ def generate_image(prompt: str) -> dict:
 
     file_id = execution.results[0].file_id
     hydrated = client.files.hydrate_file(file_id=file_id)
-    url = hydrated.file.download_source.url if hydrated.file.download_source else None
+    url = _hydrated_download_url(hydrated)
 
     return {"status": "succeeded", "file_id": file_id, "url": url}
 
@@ -44,7 +52,7 @@ def transform_image(file_id: str, prompt: str) -> dict:
         Dictionary with the new file_id and download URL.
     """
     response = client.tools.image_to_image(
-        image_file_id=file_id,
+        image_storage_file_ids=[file_id],
         prompt=prompt,
     )
     execution = poll_executed_tool(client, response.tool_execution_id)
@@ -54,7 +62,7 @@ def transform_image(file_id: str, prompt: str) -> dict:
 
     new_file_id = execution.results[0].file_id
     hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = hydrated.file.download_source.url if hydrated.file.download_source else None
+    url = _hydrated_download_url(hydrated)
 
     return {"status": "succeeded", "file_id": new_file_id, "url": url}
 
@@ -68,7 +76,7 @@ def vectorize_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL for the SVG.
     """
-    response = client.tools.vectorize_image(image_file_id=file_id)
+    response = client.tools.vectorize_image(image_storage_file_id=file_id)
     execution = poll_executed_tool(client, response.tool_execution_id)
 
     if execution.status != "succeeded" or not execution.results:
@@ -76,7 +84,7 @@ def vectorize_image(file_id: str) -> dict:
 
     new_file_id = execution.results[0].file_id
     hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = hydrated.file.download_source.url if hydrated.file.download_source else None
+    url = _hydrated_download_url(hydrated)
 
     return {"status": "succeeded", "file_id": new_file_id, "url": url}
 
@@ -90,7 +98,7 @@ def remove_background(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL (transparent PNG).
     """
-    response = client.tools.remove_image_background(image_file_id=file_id)
+    response = client.tools.remove_image_background(image_storage_file_id=file_id)
     execution = poll_executed_tool(client, response.tool_execution_id)
 
     if execution.status != "succeeded" or not execution.results:
@@ -98,7 +106,7 @@ def remove_background(file_id: str) -> dict:
 
     new_file_id = execution.results[0].file_id
     hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = hydrated.file.download_source.url if hydrated.file.download_source else None
+    url = _hydrated_download_url(hydrated)
 
     return {"status": "succeeded", "file_id": new_file_id, "url": url}
 
@@ -112,7 +120,7 @@ def upscale_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL.
     """
-    response = client.tools.upscale_image(image_file_id=file_id)
+    response = client.tools.upscale_image(image_storage_file_id=file_id)
     execution = poll_executed_tool(client, response.tool_execution_id)
 
     if execution.status != "succeeded" or not execution.results:
@@ -120,7 +128,7 @@ def upscale_image(file_id: str) -> dict:
 
     new_file_id = execution.results[0].file_id
     hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = hydrated.file.download_source.url if hydrated.file.download_source else None
+    url = _hydrated_download_url(hydrated)
 
     return {"status": "succeeded", "file_id": new_file_id, "url": url}
 
@@ -135,14 +143,16 @@ def search_files(query: str) -> dict:
         Dictionary with a list of matching files.
     """
     response = client.files.search_files(query=query)
-    files = [
-        {
-            "file_id": f.file_id,
-            "display_name": f.display_name,
-            "type": f.type,
-        }
-        for f in response.files[:5]
-    ]
+    files = []
+    for result in response.results[:5]:
+        f = result.file
+        files.append(
+            {
+                "file_id": f.file_id,
+                "display_name": f.display_name,
+                "type": f.type,
+            }
+        )
     return {"status": "succeeded", "files": files}
 
 
@@ -155,7 +165,13 @@ def upload_image(file_path: str) -> dict:
     Returns:
         Dictionary with the uploaded file_id.
     """
+    display_name = os.path.basename(file_path)
     with open(file_path, "rb") as f:
-        response = client.files.upload_file(file=f)
+        hydrated = upload_file(
+            client,
+            f,
+            display_name=display_name,
+            type="IMAGE",
+        )
 
-    return {"status": "succeeded", "file_id": response.file_id}
+    return {"status": "succeeded", "file_id": hydrated.file_id}

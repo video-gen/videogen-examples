@@ -20,11 +20,11 @@ export type GenerateResponse = {
 };
 
 export async function getVoices() {
-  const voices = await vg.resources.getTtsVoices();
-  return voices.voices.map((v) => ({
+  const res = await vg.resources.listTtsVoices();
+  return res.ttsVoices.map((v) => ({
     id: v.voiceId,
     name: v.displayName,
-    language: v.language,
+    language: v.languageCode,
   }));
 }
 
@@ -53,7 +53,7 @@ export async function generate(
           if (execution.status === "succeeded" && execution.results?.[0]) {
             const fileId = execution.results[0].fileId;
             const hydrated = await vg.files.hydrateFile({ fileId });
-            const url = hydrated.file.downloadSource?.url;
+            const url = hydrated.downloadSource?.url;
             if (url) {
               results.push({
                 type: "image",
@@ -84,8 +84,8 @@ export async function generate(
             const fileId = execution.results[0].fileId;
             await vg.files.enablePublicPreview({ fileId });
             const hydrated = await vg.files.hydrateFile({ fileId });
-            const publicPlaybackId = hydrated.file.publicPlaybackId;
-            const url = hydrated.file.downloadSource?.url ?? "";
+            const publicPlaybackId = hydrated.publicPlaybackId;
+            const url = hydrated.downloadSource?.url ?? "";
             results.push({
               type: "video",
               url,
@@ -110,14 +110,14 @@ export async function generate(
         }),
         execute: async ({ text, voiceId: toolVoiceId }) => {
           const { toolExecutionId } = await vg.tools.textToSpeech({
-            text,
+            ttsText: text,
             voiceId: toolVoiceId ?? voiceId,
           });
           const execution = await pollExecutedTool(vg, toolExecutionId);
           if (execution.status === "succeeded" && execution.results?.[0]) {
             const fileId = execution.results[0].fileId;
             const hydrated = await vg.files.hydrateFile({ fileId });
-            const url = hydrated.file.downloadSource?.url;
+            const url = hydrated.downloadSource?.url;
             if (url) {
               results.push({
                 type: "audio",

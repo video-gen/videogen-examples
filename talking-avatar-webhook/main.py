@@ -59,27 +59,27 @@ app = FastAPI(
 @app.get("/voices", response_model=list[VoiceInfo])
 def list_voices():
     """List available TTS voices."""
-    response = client.resources.get_tts_voices()
+    response = client.resources.list_tts_voices()
     return [
         VoiceInfo(
             voice_id=v.voice_id,
             display_name=v.display_name,
-            language=v.language,
+            language=v.language_code,
         )
-        for v in response.voices
+        for v in response.tts_voices
     ]
 
 
 @app.get("/presenters", response_model=list[PresenterInfo])
 def list_presenters():
     """List available avatar presenters."""
-    response = client.resources.get_avatar_presenters()
+    response = client.resources.list_avatar_presenters()
     return [
         PresenterInfo(
-            presenter_id=p.presenter_id,
-            display_name=p.display_name,
+            presenter_id=p.avatar_presenter_id,
+            display_name=f"{p.avatar_presenter_id} ({p.displayable_gender})",
         )
-        for p in response.presenters
+        for p in response.avatar_presenters
     ]
 
 
@@ -99,7 +99,7 @@ def generate_avatar(req: GenerateAvatarRequest):
 
     # Step 1: Text-to-Speech (poll since it's quick ~5-10s)
     tts_response = client.tools.text_to_speech(
-        text=req.text,
+        tts_text=req.text,
         voice_id=req.voice_id,
     )
     job.tts_execution_id = tts_response.tool_execution_id
@@ -115,8 +115,8 @@ def generate_avatar(req: GenerateAvatarRequest):
 
     # Step 2: Audio-to-Avatar (uses webhook callback for completion)
     avatar_response = client.tools.audio_to_avatar_clip(
-        audio_file_id=audio_file_id,
-        presenter_id=req.presenter_id,
+        audio_storage_file_id=audio_file_id,
+        avatar_presenter_id=req.presenter_id,
     )
     job.avatar_execution_id = avatar_response.tool_execution_id
     execution_to_job[avatar_response.tool_execution_id] = job_id
