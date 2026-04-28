@@ -1,0 +1,16 @@
+{
+  "name": "videogen-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example full-stack apps using the VideoGen API.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/video-gen/videogen-examples.git"
+  },
+  "homepage": "https://videogen.docs.buildwithfern.com",
+  "author": "VideoGen, Inc.",
+  "license": "MIT",
+  "scripts": {
+    "generate": "rm -rf /tmp/vg-examples-generate && git clone --depth 1 https://github.com/video-gen/videogen-examples.git /tmp/vg-examples-generate && rsync -a --delete --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='__pycache__' --exclude='.venv' --exclude='dist' ./ /tmp/vg-examples-generate/ && cd /tmp/vg-examples-generate && git add -A && git diff --cached --quiet || (git commit -m 'Sync from monorepo' && git push) && rm -rf /tmp/vg-examples-generate"
+  }
+}
