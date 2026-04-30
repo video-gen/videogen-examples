@@ -11,7 +11,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.3.0",
     "@videogen/player-react": "^0.1.4",
-    "@videogen/sdk": "^0.0.31",
+    "@videogen/sdk": "^0.0.32",
     "ai": "^4.3.0",
     "next": "^15.3.0",
     "react": "^19.1.0",
