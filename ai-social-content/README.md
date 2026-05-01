@@ -21,8 +21,8 @@ https://github.com/user-attachments/assets/PLACEHOLDER-VIDEO-DEMO
 
 ## VideoGen endpoints used
 
-- `POST /v1/tools/prompt-to-image` — Generate images from text
-- `POST /v1/tools/prompt-to-video-clip` — Generate video clips from text
+- `POST /v1/tools/generate-image` — Generate images from text
+- `POST /v1/tools/generate-video-clip` — Generate video clips from text
 - `POST /v1/tools/text-to-speech` — Convert text to speech
 - `POST /v1/files/{id}/enable-public-preview` — Enable video embedding
 - `POST /v1/files/{id}/hydrate` — Get download URLs
