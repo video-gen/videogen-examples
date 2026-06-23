@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+out/
+*.log
+
+# Local env
+.env
+.env.local
+
+# Firebase emulator state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+firestore-export/

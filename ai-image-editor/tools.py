@@ -5,10 +5,13 @@ Each tool wraps a VideoGen SDK call and returns the hydrated file URL.
 """
 
 import os
+from collections.abc import Callable
 
 from videogen import VideoGenApi, poll_executed_tool, upload_file
 
 client = VideoGenApi(token=os.environ["VIDEOGEN_API_KEY"])
+
+EXAMPLE_IMAGE_QUALITY = "LOW"
 
 
 def _hydrated_download_url(hydrated) -> str | None:
@@ -17,6 +20,23 @@ def _hydrated_download_url(hydrated) -> str | None:
         return None
     url = getattr(ds, "url", None)
     return url if isinstance(url, str) else None
+
+
+def _run_polled_image_tool(
+    failure_message: str,
+    start_fn: Callable[[], object],
+) -> dict:
+    response = start_fn()
+    execution = poll_executed_tool(client, response.tool_execution_id)
+
+    if execution.status != "succeeded" or not execution.results:
+        return {"status": "failed", "error": failure_message}
+
+    file_id = execution.results[0].file_id
+    hydrated = client.files.hydrate_file(file_id=file_id)
+    url = _hydrated_download_url(hydrated)
+
+    return {"status": "succeeded", "file_id": file_id, "url": url}
 
 
 def generate_image(prompt: str) -> dict:
@@ -28,21 +48,16 @@ def generate_image(prompt: str) -> dict:
     Returns:
         Dictionary with file_id and download URL.
     """
-    response = client.tools.prompt_to_image(prompt=prompt)
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
-        return {"status": "failed", "error": "Image generation failed"}
-
-    file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=file_id)
-    url = _hydrated_download_url(hydrated)
-
-    return {"status": "succeeded", "file_id": file_id, "url": url}
+    return _run_polled_image_tool(
+        "Image generation failed",
+        lambda: client.tools.generate_image(prompt=prompt, quality=EXAMPLE_IMAGE_QUALITY),
+    )
 
 
 def transform_image(file_id: str, prompt: str) -> dict:
     """Transform an existing image using a text prompt (image-to-image).
+
+    Uses ``POST /v1/tools/generate-image`` with reference file ids (see API docs).
 
     Args:
         file_id: The VideoGen file ID of the source image.
@@ -51,20 +66,14 @@ def transform_image(file_id: str, prompt: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL.
     """
-    response = client.tools.image_to_image(
-        image_storage_file_ids=[file_id],
-        prompt=prompt,
+    return _run_polled_image_tool(
+        "Image transformation failed",
+        lambda: client.tools.generate_image(
+            prompt=prompt,
+            image_file_ids=[file_id],
+            quality=EXAMPLE_IMAGE_QUALITY,
+        ),
     )
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
-        return {"status": "failed", "error": "Image transformation failed"}
-
-    new_file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = _hydrated_download_url(hydrated)
-
-    return {"status": "succeeded", "file_id": new_file_id, "url": url}
 
 
 def vectorize_image(file_id: str) -> dict:
@@ -76,17 +85,10 @@ def vectorize_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL for the SVG.
     """
-    response = client.tools.vectorize_image(image_storage_file_id=file_id)
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
-        return {"status": "failed", "error": "Vectorization failed"}
-
-    new_file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = _hydrated_download_url(hydrated)
-
-    return {"status": "succeeded", "file_id": new_file_id, "url": url}
+    return _run_polled_image_tool(
+        "Vectorization failed",
+        lambda: client.tools.vectorize_image(image_storage_file_id=file_id),
+    )
 
 
 def remove_background(file_id: str) -> dict:
@@ -98,17 +100,10 @@ def remove_background(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL (transparent PNG).
     """
-    response = client.tools.remove_image_background(image_storage_file_id=file_id)
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
-        return {"status": "failed", "error": "Background removal failed"}
-
-    new_file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = _hydrated_download_url(hydrated)
-
-    return {"status": "succeeded", "file_id": new_file_id, "url": url}
+    return _run_polled_image_tool(
+        "Background removal failed",
+        lambda: client.tools.remove_image_background(image_storage_file_id=file_id),
+    )
 
 
 def upscale_image(file_id: str) -> dict:
@@ -120,17 +115,10 @@ def upscale_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL.
     """
-    response = client.tools.upscale_image(image_storage_file_id=file_id)
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
-        return {"status": "failed", "error": "Upscaling failed"}
-
-    new_file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=new_file_id)
-    url = _hydrated_download_url(hydrated)
-
-    return {"status": "succeeded", "file_id": new_file_id, "url": url}
+    return _run_polled_image_tool(
+        "Upscaling failed",
+        lambda: client.tools.upscale_image(image_storage_file_id=file_id),
+    )
 
 
 def search_files(query: str) -> dict:

@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #0a0a0f;
+  color: #ededed;
+}
+
+/* Tailwind v4's Preflight no longer sets cursor: pointer on buttons. Restore it
+   for every enabled button/role=button so clickable controls feel clickable. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}

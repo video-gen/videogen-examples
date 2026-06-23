@@ -12,6 +12,7 @@ https://github.com/user-attachments/assets/PLACEHOLDER-VIDEO-DEMO
 4. Upload your own images to transform, vectorize, or upscale them
 
 **Example conversation:**
+
 ```
 You: Generate a logo for a coffee shop called Sunrise Beans
 Agent: [generates image, shows URL]
@@ -29,7 +30,7 @@ Agent: [upscales the first logo, shows high-res URL]
 ## Stack
 
 - [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) — agentic orchestration
-- [VideoGen Python SDK](https://videogen.docs.buildwithfern.com/libraries/python) — image generation and manipulation
+- [VideoGen Python SDK](https://docs.videogen.io/libraries/python) — image generation and manipulation
 - [Gradio](https://www.gradio.app) — chat interface with image upload
 
 ## VideoGen endpoints used
@@ -69,10 +70,10 @@ Open [http://localhost:7860](http://localhost:7860).
 
 ### Environment variables
 
-| Variable | Description |
-| --- | --- |
+| Variable           | Description                                                                |
+| ------------------ | -------------------------------------------------------------------------- |
 | `VIDEOGEN_API_KEY` | Your VideoGen API key ([get one here](https://app.videogen.io/developers)) |
-| `OPENAI_API_KEY` | Your OpenAI API key for the Agents SDK |
+| `OPENAI_API_KEY`   | Your OpenAI API key for the Agents SDK                                     |
 
 ## Deploy to Hugging Face Spaces
 
@@ -94,6 +95,6 @@ cd ../ai-image-editor-space && git add . && git commit -m "Initial" && git push
 
 ## Learn more
 
-- [VideoGen API Docs](https://videogen.docs.buildwithfern.com)
+- [VideoGen API Docs](https://docs.videogen.io)
 - [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
-- [Use VideoGen with AI Agents](https://videogen.docs.buildwithfern.com/use-with-ai-agents)
+- [Use VideoGen with AI Agents](https://docs.videogen.io/use-with-ai-agents)

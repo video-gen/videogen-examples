@@ -1,14 +1,15 @@
 # VideoGen API Examples
 
-[![Docs](https://img.shields.io/badge/docs-videogen.docs.buildwithfern.com-blue)](https://videogen.docs.buildwithfern.com)
+[![Docs](https://img.shields.io/badge/docs-docs.videogen.io-blue)](https://docs.videogen.io)
 
-Full-stack example apps demonstrating the [VideoGen API](https://videogen.docs.buildwithfern.com). Each example targets a different SDK, framework, and use case.
+Full-stack example apps demonstrating the [VideoGen API](https://docs.videogen.io). Each example targets a different SDK, framework, and use case.
 
 ## Examples
 
 | Example                                                    | Stack                                     | Use case                                                  |
 | ---------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| [AI Social Content Generator](./ai-social-content/)        | Next.js 15, Vercel AI SDK, TypeScript SDK | AI agent decides what media to generate from a topic      |
+| [Script to Video Studio](./script-to-video-studio/)        | Next.js, Node/Express, Firebase, TS SDK   | Full app: auth, DB, webhooks, realtime script-to-video    |
+| [AI Social Content Generator](./ai-social-content/)        | Next.js 15, TypeScript SDK                | VideoGen text endpoint plans what media to generate       |
 | [Talking Avatar Webhook Server](./talking-avatar-webhook/) | FastAPI, Python SDK                       | Production webhook pipeline: text → speech → avatar video |
 | [AI Image Editor](./ai-image-editor/)                      | OpenAI Agents SDK, Python SDK, Gradio     | Conversational image generation and transformation        |
 
@@ -26,10 +27,10 @@ cd videogen-examples
 
 ## Documentation
 
-- [VideoGen API Docs](https://videogen.docs.buildwithfern.com)
-- [Getting Started](https://videogen.docs.buildwithfern.com/getting-started)
-- [Use with AI Agents](https://videogen.docs.buildwithfern.com/use-with-ai-agents)
-- [Handling Responses: Polling & Webhooks](https://videogen.docs.buildwithfern.com/handling-responses-polling-and-webhooks)
+- [VideoGen API Docs](https://docs.videogen.io)
+- [Getting Started](https://docs.videogen.io/getting-started)
+- [Use with AI Agents](https://docs.videogen.io/use-with-ai-agents)
+- [Handling Responses: Polling & Webhooks](https://docs.videogen.io/handling-responses-polling-and-webhooks)
 
 ## License
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { VideoGenPlayer } from "@videogen/player-react";
 import type { GenerateResponse } from "@/app/actions";
 
 export function ResultsGallery({ response }: { response: GenerateResponse }) {
@@ -33,15 +32,7 @@ export function ResultsGallery({ response }: { response: GenerateResponse }) {
                   />
                 )}
 
-                {result.type === "video" && result.publicPlaybackId && (
-                  <VideoGenPlayer
-                    publicPlaybackId={result.publicPlaybackId}
-                    autoplay={false}
-                    muted
-                  />
-                )}
-
-                {result.type === "video" && !result.publicPlaybackId && (
+                {result.type === "video" && (
                   <video
                     src={result.url}
                     controls

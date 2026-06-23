@@ -32,7 +32,7 @@ POST /generate-avatar { text: "Hello world" }
 ## Stack
 
 - [FastAPI](https://fastapi.tiangolo.com) — Python web framework
-- [VideoGen Python SDK](https://videogen.docs.buildwithfern.com/libraries/python) — media generation + webhook verification
+- [VideoGen Python SDK](https://docs.videogen.io/libraries/python) — media generation + webhook verification
 - [Pydantic](https://docs.pydantic.dev) — data validation
 - [Docker](https://www.docker.com) — containerized deployment
 
@@ -103,11 +103,11 @@ Restart the server.
 
 ### Environment variables
 
-| Variable | Description |
-| --- | --- |
-| `VIDEOGEN_API_KEY` | Your VideoGen API key |
+| Variable                  | Description                                         |
+| ------------------------- | --------------------------------------------------- |
+| `VIDEOGEN_API_KEY`        | Your VideoGen API key                               |
 | `VIDEOGEN_WEBHOOK_SECRET` | Webhook signing secret (from endpoint registration) |
-| `PUBLIC_URL` | Your server's public URL (for webhook delivery) |
+| `PUBLIC_URL`              | Your server's public URL (for webhook delivery)     |
 
 ## API
 
@@ -157,6 +157,6 @@ docker compose up -d
 
 ## Learn more
 
-- [VideoGen API Docs](https://videogen.docs.buildwithfern.com)
-- [Handling Responses: Polling & Webhooks](https://videogen.docs.buildwithfern.com/handling-responses-polling-and-webhooks)
+- [VideoGen API Docs](https://docs.videogen.io)
+- [Handling Responses: Polling & Webhooks](https://docs.videogen.io/handling-responses-polling-and-webhooks)
 - [Standard Webhooks Spec](https://www.standardwebhooks.com/)

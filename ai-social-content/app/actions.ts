@@ -1,89 +1,21 @@
 "use server";
 
-import { VideoGenClient, VideoGenError, pollExecutedTool } from "@videogen/sdk";
-import { openai } from "@ai-sdk/openai";
-import { generateText, tool } from "ai";
+import { VideoGenClient, pollExecutedTool, pollPublicPreview } from "@videogen/sdk";
 import { z } from "zod";
 
-const VIDEOGEN_API_BASE =
-  process.env.VIDEOGEN_API_URL ?? "http://localhost:4010";
+const EXAMPLE_IMAGE_QUALITY = "STANDARD";
+const EXAMPLE_VIDEO_QUALITY = "STANDARD";
 
 const vg = new VideoGenClient({
   token: process.env.VIDEOGEN_API_KEY!,
-  baseUrl: VIDEOGEN_API_BASE,
+  ...(process.env.VIDEOGEN_API_URL != null && process.env.VIDEOGEN_API_URL !== ""
+    ? { baseUrl: process.env.VIDEOGEN_API_URL }
+    : {}),
 });
-
-/**
- * Some published SDK versions still call removed paths (e.g. `prompt-to-image`).
- * The Developer API uses `POST /v1/tools/generate-image` and `.../generate-video-clip` per OpenAPI.
- */
-const startToolExecution = async ({
-  path,
-  body,
-}: {
-  path: "/v1/tools/generate-image" | "/v1/tools/generate-video-clip";
-  body: Record<string, unknown>;
-}): Promise<{ toolExecutionId: string }> => {
-  const token = process.env.VIDEOGEN_API_KEY;
-
-  if (token == null || token.length === 0) {
-    throw new VideoGenError({ message: "VIDEOGEN_API_KEY is not set." });
-  }
-
-  const res = await fetch(`${VIDEOGEN_API_BASE}${path}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const responseText = await res.text();
-  let responseJson: unknown;
-
-  try {
-    responseJson = JSON.parse(responseText) as unknown;
-  } catch {
-    throw new VideoGenError({
-      message: `VideoGen API ${path} returned non-JSON.`,
-      statusCode: res.status,
-      body: responseText,
-    });
-  }
-
-  if (!res.ok) {
-    throw new VideoGenError({
-      message: `VideoGen API ${path} failed.`,
-      statusCode: res.status,
-      body: responseJson,
-    });
-  }
-
-  if (
-    typeof responseJson !== "object" ||
-    responseJson === null ||
-    !("toolExecutionId" in responseJson) ||
-    typeof (responseJson as { toolExecutionId: unknown }).toolExecutionId !==
-      "string"
-  ) {
-    throw new VideoGenError({
-      message: "VideoGen API returned an unexpected start-tool response shape.",
-      statusCode: res.status,
-      body: responseJson,
-    });
-  }
-
-  return {
-    toolExecutionId: (responseJson as { toolExecutionId: string }).toolExecutionId,
-  };
-};
 
 export type GenerationResult = {
   type: "image" | "video" | "audio";
   url: string;
-  publicPlaybackId?: string;
   description: string;
 };
 
@@ -91,6 +23,21 @@ export type GenerateResponse = {
   results: GenerationResult[];
   summary: string;
 };
+
+async function enableAndPollPublicPreview({
+  fileId,
+  waitForEmbedPlaybackId,
+}: {
+  fileId: string;
+  waitForEmbedPlaybackId: boolean;
+}): Promise<{
+  publicPreviewUrl: string;
+  publicPlaybackId: string | null;
+  publicHlsUrl: string | null;
+}> {
+  await vg.files.enablePublicPreview({ fileId });
+  return await pollPublicPreview(vg, fileId, { waitForEmbedPlaybackId });
+}
 
 export async function getVoices() {
   const res = await vg.resources.listTtsVoices();
@@ -103,118 +50,133 @@ export async function getVoices() {
     }));
 }
 
+// VideoGen's text endpoint returns plain text, so we ask the model for a JSON
+// content plan and parse it here — no agent framework or OpenAI key required.
+const ContentPlanSchema = z.object({
+  imagePrompt: z.string().min(1).nullable(),
+  videoPrompt: z.string().min(1).nullable(),
+  speechText: z.string().min(1).nullable(),
+  summary: z.string().min(1),
+});
+
+type ContentPlan = z.infer<typeof ContentPlanSchema>;
+
+const PLAN_SYSTEM_PROMPT = `You are a social media content planning assistant. Given a topic, decide which media assets would best serve it and write the generation prompts.
+
+Respond with ONLY a JSON object (no markdown, no code fences) matching exactly:
+{
+  "imagePrompt": string | null,   // detailed, visually compelling description, or null to skip
+  "videoPrompt": string | null,   // short engaging video clip description, or null to skip
+  "speechText": string | null,    // narration script to voice aloud, or null to skip
+  "summary": string               // 1-2 plain-text sentences describing what you created
+}
+
+Rules:
+- Include at least one non-null asset.
+- The summary must be plain text: no markdown, headings, bullet points, bold/italics, links, URLs, or file IDs.`;
+
+function parseContentPlan(raw: string, fallbackTopic: string): ContentPlan {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  const jsonSlice = start !== -1 && end !== -1 && end > start ? raw.slice(start, end + 1) : raw;
+
+  try {
+    const parsed: unknown = JSON.parse(jsonSlice);
+    const result = ContentPlanSchema.safeParse(parsed);
+    if (
+      result.success &&
+      (result.data.imagePrompt != null ||
+        result.data.videoPrompt != null ||
+        result.data.speechText != null)
+    ) {
+      return result.data;
+    }
+  } catch {
+    // Fall through to a sensible default if the model didn't return clean JSON.
+  }
+
+  return {
+    imagePrompt: `An eye-catching social media image about: ${fallbackTopic}`,
+    videoPrompt: null,
+    speechText: null,
+    summary: `Generated a social media image about ${fallbackTopic}.`,
+  };
+}
+
 export async function generate(
   prompt: string,
   voiceId?: string,
 ): Promise<GenerateResponse> {
   const results: GenerationResult[] = [];
 
-  const { text } = await generateText({
-    model: openai("gpt-4o"),
-    tools: {
-      generateImage: tool({
-        description:
-          "Generate an image from a text prompt. Use for social media visuals, thumbnails, or illustrations.",
-        parameters: z.object({
-          prompt: z
-            .string()
-            .describe("Detailed visual description of the image to generate"),
-        }),
-        execute: async ({ prompt: imagePrompt }) => {
-          const { toolExecutionId } = await vg.tools.generateImage({
-            prompt: imagePrompt,
-          });
-          const execution = await pollExecutedTool(vg, toolExecutionId);
-          if (execution.status === "succeeded" && execution.results?.[0]) {
-            const fileId = execution.results[0].fileId;
-            const hydrated = await vg.files.hydrateFile({ fileId });
-            const url = hydrated.downloadSource?.url;
-            if (url) {
-              results.push({
-                type: "image",
-                url,
-                description: imagePrompt,
-              });
-            }
-            return { status: "succeeded", fileId };
-          }
-          return { status: execution.status };
-        },
-      }),
-
-      generateVideoClip: tool({
-        description:
-          "Generate a short video clip from a text prompt. Use for social media video content.",
-        parameters: z.object({
-          prompt: z
-            .string()
-            .describe("Description of the video clip to generate"),
-        }),
-        execute: async ({ prompt: videoPrompt }) => {
-          const { toolExecutionId } = await vg.tools.generateVideoClip({
-            prompt: videoPrompt,
-          });
-          const execution = await pollExecutedTool(vg, toolExecutionId);
-          if (execution.status === "succeeded" && execution.results?.[0]) {
-            const fileId = execution.results[0].fileId;
-            await vg.files.enablePublicPreview({ fileId });
-            const hydrated = await vg.files.hydrateFile({ fileId });
-            const publicPlaybackId = hydrated.publicPlaybackId;
-            const url = hydrated.downloadSource?.url ?? "";
-            results.push({
-              type: "video",
-              url,
-              publicPlaybackId: publicPlaybackId ?? undefined,
-              description: videoPrompt,
-            });
-            return { status: "succeeded", fileId };
-          }
-          return { status: execution.status };
-        },
-      }),
-
-      generateSpeech: tool({
-        description:
-          "Convert text to speech audio. Use for voiceovers and narration. The narrator voice is the one the user selected in the form (VideoGen API ids look like vg_voic_...); do not invent voice names or provider codes.",
-        parameters: z.object({
-          text: z.string().describe("The text to convert to speech"),
-        }),
-        execute: async ({ text }) => {
-          const { toolExecutionId } = await vg.tools.textToSpeech({
-            ttsText: text,
-            voiceId,
-          });
-          const execution = await pollExecutedTool(vg, toolExecutionId);
-          if (execution.status === "succeeded" && execution.results?.[0]) {
-            const fileId = execution.results[0].fileId;
-            const hydrated = await vg.files.hydrateFile({ fileId });
-            const url = hydrated.downloadSource?.url;
-            if (url) {
-              results.push({
-                type: "audio",
-                url,
-                description: text,
-              });
-            }
-            return { status: "succeeded", fileId };
-          }
-          return { status: execution.status };
-        },
-      }),
-    },
-    maxSteps: 6,
-    prompt: `You are a social media content creation assistant. The user wants content about: "${prompt}".
-
-Decide which media assets would best serve this content. You might generate:
-- An eye-catching image for the post
-- A short video clip for engagement
-- A voiceover narration for accessibility or video content
-
-Generate the assets that make the most sense for the topic. Be creative with your prompts to the generation tools — write detailed, visually compelling descriptions.`,
+  const { text } = await vg.text.generateText({
+    prompt: `Topic: "${prompt}"`,
+    system: PLAN_SYSTEM_PROMPT,
+    model: "STANDARD",
+    maxOutputTokens: 600,
   });
+
+  const plan = parseContentPlan(text, prompt);
+
+  if (plan.imagePrompt != null) {
+    const { toolExecutionId } = await vg.tools.generateImage({
+      prompt: plan.imagePrompt,
+      quality: EXAMPLE_IMAGE_QUALITY,
+    });
+    const execution = await pollExecutedTool(vg, toolExecutionId);
+    if (execution.status === "succeeded" && execution.results?.[0]) {
+      const preview = await enableAndPollPublicPreview({
+        fileId: execution.results[0].fileId,
+        waitForEmbedPlaybackId: false,
+      });
+      results.push({
+        type: "image",
+        url: preview.publicPreviewUrl,
+        description: plan.imagePrompt,
+      });
+    }
+  }
+
+  if (plan.videoPrompt != null) {
+    const { toolExecutionId } = await vg.tools.generateVideoClip({
+      prompt: plan.videoPrompt,
+      quality: EXAMPLE_VIDEO_QUALITY,
+    });
+    const execution = await pollExecutedTool(vg, toolExecutionId);
+    if (execution.status === "succeeded" && execution.results?.[0]) {
+      const preview = await enableAndPollPublicPreview({
+        fileId: execution.results[0].fileId,
+        waitForEmbedPlaybackId: false,
+      });
+      results.push({
+        type: "video",
+        url: preview.publicPreviewUrl,
+        description: plan.videoPrompt,
+      });
+    }
+  }
+
+  if (plan.speechText != null) {
+    const { toolExecutionId } = await vg.tools.textToSpeech({
+      ttsText: plan.speechText,
+      voiceId,
+    });
+    const execution = await pollExecutedTool(vg, toolExecutionId);
+    if (execution.status === "succeeded" && execution.results?.[0]) {
+      const preview = await enableAndPollPublicPreview({
+        fileId: execution.results[0].fileId,
+        waitForEmbedPlaybackId: false,
+      });
+      results.push({
+        type: "audio",
+        url: preview.publicPreviewUrl,
+        description: plan.speechText,
+      });
+    }
+  }
 
   return {
     results,
-    summary: text ?? "Content generated successfully.",
+    summary: plan.summary,
   };
 }

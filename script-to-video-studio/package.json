@@ -1,0 +1,17 @@
+{
+  "name": "script-to-video-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Script-to-video studio: a self-hostable wrapper around the VideoGen API with auth, a database, webhooks, and realtime progress.",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix web install",
+    "emulators": "firebase emulators:start --project demo-script-to-video",
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "concurrently -k -n emulators,server,web -c magenta,cyan,green \"npm:emulators\" \"npm:dev:server\" \"npm:dev:web\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "firebase-tools": "^13.29.0"
+  }
+}
