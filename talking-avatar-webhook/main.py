@@ -25,7 +25,11 @@ from models import (
 
 load_dotenv()
 
-client = VideoGenApi(token=os.environ["VIDEOGEN_API_KEY"])
+_videogen_api_url = os.environ.get("VIDEOGEN_API_URL")
+client = VideoGenApi(
+    token=os.environ["VIDEOGEN_API_KEY"],
+    **({"base_url": _videogen_api_url} if _videogen_api_url not in (None, "") else {}),
+)
 WEBHOOK_SECRET = os.environ.get("VIDEOGEN_WEBHOOK_SECRET", "")
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "http://localhost:8000")
 
@@ -114,7 +118,7 @@ def generate_avatar(req: GenerateAvatarRequest):
     job.status = "generating_avatar"
 
     # Step 2: Audio-to-Avatar (uses webhook callback for completion)
-    avatar_response = client.tools.audio_to_avatar_clip(
+    avatar_response = client.tools.generate_avatar(
         audio_storage_file_id=audio_file_id,
         avatar_presenter_id=req.presenter_id,
     )

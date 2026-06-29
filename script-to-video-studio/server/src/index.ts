@@ -95,7 +95,7 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
   });
 
   try {
-    const run = await vg.workflows.addVisualsNarrationsAndCaptionsToScript({
+    const run = await vg.workflows.scriptToVideo({
       script,
       aspectRatio,
     });

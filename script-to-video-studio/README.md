@@ -41,7 +41,7 @@ The public script-to-video API is intentionally small, so the form wraps exactly
 
 ## VideoGen endpoints used
 
-- `POST /v1/workflows/add-visuals-narrations-and-captions-to-script` — start generation
+- `POST /v1/workflows/script-to-video` — start generation
 - `GET /v1/workflows/runs/{id}` — poll progress
 - `POST /v1/projects/{id}/export` + `GET /v1/projects/{id}/exports/{exportId}` — export + poll
 - `POST /v1/webhooks/endpoints` + `verifyWebhookSignature` — optional webhook fast-path

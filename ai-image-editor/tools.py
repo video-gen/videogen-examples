@@ -9,7 +9,11 @@ from collections.abc import Callable
 
 from videogen import VideoGenApi, poll_executed_tool, upload_file
 
-client = VideoGenApi(token=os.environ["VIDEOGEN_API_KEY"])
+_videogen_api_url = os.environ.get("VIDEOGEN_API_URL")
+client = VideoGenApi(
+    token=os.environ["VIDEOGEN_API_KEY"],
+    **({"base_url": _videogen_api_url} if _videogen_api_url not in (None, "") else {}),
+)
 
 EXAMPLE_IMAGE_QUALITY = "LOW"
 

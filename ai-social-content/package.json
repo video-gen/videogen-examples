@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@videogen/player-react": "^0.1.4",
-    "@videogen/sdk": "^1.0.0",
+    "@videogen/sdk": "^1.1.4",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
