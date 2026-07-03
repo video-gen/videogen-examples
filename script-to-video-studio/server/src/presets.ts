@@ -1,7 +1,7 @@
-// The public script-to-video workflow currently accepts only `script` and an
-// optional `aspectRatio`; export accepts a `quality` tier. We expose those as a
-// few friendly presets — the full surface an indie dev can drive from the
-// public API today.
+// The public script-to-video workflow requires `script` and `visualStyle`; we
+// also pass a couple of remix actions and optional `aspectRatio`. Export accepts
+// a `quality` tier. We expose aspect ratio and export quality as friendly
+// presets — the full surface an indie dev can drive from the public API today.
 
 export const ASPECT_RATIO_PRESETS = [
   { id: "landscape", label: "Landscape · 16:9", width: 16, height: 9 },

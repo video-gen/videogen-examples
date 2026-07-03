@@ -37,7 +37,7 @@ The public script-to-video API is intentionally small, so the form wraps exactly
 | Aspect ratio  | workflow      | 16:9, 9:16, 1:1                                    |
 | Export quality| export        | Standard, High, Full HD, Ultra (4K)                |
 
-> Voice, visual style, captions, and music use the API's server-side defaults — they aren't exposed on the public workflow endpoint yet.
+> Voice, captions, and music beyond the defaults aren't exposed in the form yet — the backend uses an AI image visual style plus caption and transition remix actions on every run.
 
 ## VideoGen endpoints used
 

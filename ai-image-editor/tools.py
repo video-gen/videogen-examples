@@ -7,7 +7,9 @@ Each tool wraps a VideoGen SDK call and returns the hydrated file URL.
 import os
 from collections.abc import Callable
 
-from videogen import VideoGenApi, poll_executed_tool, upload_file
+from videogen import VideoGenApi
+from videogen.poll_executed_tool import poll_executed_tool
+from videogen.upload_file import upload_file
 
 _videogen_api_url = os.environ.get("VIDEOGEN_API_URL")
 client = VideoGenApi(

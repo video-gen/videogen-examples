@@ -1,6 +1,6 @@
 // Mirrors the presets the backend accepts. The public script-to-video workflow
-// currently only varies `script` + `aspectRatio`; export varies `quality`.
-// Those are the knobs we expose.
+// requires `script` + `visualStyle`; this app hard-codes an AI image style on the
+// backend. Export varies `quality`. Those are the knobs we expose in the UI.
 
 export const ASPECT_RATIO_PRESETS = [
   { id: "landscape", label: "Landscape · 16:9" },

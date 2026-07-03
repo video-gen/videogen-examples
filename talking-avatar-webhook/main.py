@@ -14,7 +14,9 @@ from contextlib import asynccontextmanager
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from videogen import VideoGenApi, poll_executed_tool, verify_webhook_signature
+from videogen import VideoGenApi
+from videogen.poll_executed_tool import poll_executed_tool
+from videogen.verify_webhook_signature import verify_webhook_signature
 
 from models import (
     GenerateAvatarRequest,

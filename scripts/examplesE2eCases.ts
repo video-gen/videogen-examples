@@ -34,6 +34,22 @@ const TALKING_AVATAR_PORT = 8000;
 const STUDIO_SERVER_PORT = 4100;
 const FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
 const AUTH_EMULATOR_URL = "http://127.0.0.1:9099";
+/** One-sentence script + STANDARD export; ~2–3 min typical, 10 min ceiling for cold local stack. */
+const SCRIPT_TO_VIDEO_STUDIO_GENERATION_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * Provisioned credentials injected directly into every example subprocess. The
+ * provisioning step already writes these into each example's `.env`, but some
+ * example entrypoints resolve their `.env` relative to the script file rather
+ * than the working directory (e.g. python-dotenv's `load_dotenv()` searches
+ * upward from the calling file). Injecting them here guarantees the vars are
+ * present regardless of each example's `.env` discovery behavior.
+ */
+const provisionedExampleEnv = (setup: LocalExamplesEnvSetup): NodeJS.ProcessEnv => ({
+  VIDEOGEN_API_KEY: setup.apiKey,
+  VIDEOGEN_API_URL: setup.baseUrl,
+  OPENAI_API_KEY: setup.openAiApiKey,
+});
 
 const runCase = async ({
   id,
@@ -67,7 +83,11 @@ const runCase = async ({
   }
 };
 
-export const runAiSocialContentHappyPath = async (): Promise<ExampleE2eCaseResult> => {
+export const runAiSocialContentHappyPath = async ({
+  setup,
+}: {
+  setup: LocalExamplesEnvSetup;
+}): Promise<ExampleE2eCaseResult> => {
   return await runCase({
     id: "ai-social-content",
     label: "AI Social Content Generator",
@@ -80,6 +100,7 @@ export const runAiSocialContentHappyPath = async (): Promise<ExampleE2eCaseResul
         command: "npm",
         args: ["run", "dev", "--", "-p", String(SOCIAL_CONTENT_PORT)],
         cwd: exampleDir,
+        env: provisionedExampleEnv(setup),
       });
 
       try {
@@ -127,6 +148,7 @@ export const runTalkingAvatarHappyPath = async ({
         command: pythonPath,
         args: ["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", String(TALKING_AVATAR_PORT)],
         cwd: exampleDir,
+        env: provisionedExampleEnv(setup),
       });
 
       try {
@@ -216,7 +238,11 @@ export const runTalkingAvatarHappyPath = async ({
   });
 };
 
-export const runAiImageEditorHappyPath = async (): Promise<ExampleE2eCaseResult> => {
+export const runAiImageEditorHappyPath = async ({
+  setup,
+}: {
+  setup: LocalExamplesEnvSetup;
+}): Promise<ExampleE2eCaseResult> => {
   return await runCase({
     id: "ai-image-editor",
     label: "AI Image Editor",
@@ -231,7 +257,7 @@ export const runAiImageEditorHappyPath = async (): Promise<ExampleE2eCaseResult>
         command: pythonPath,
         args: [resolve(REPO_ROOT, "examples/scripts/e2e/ai_image_editor_happy_path.py")],
         cwd: exampleDir,
-        env: { PYTHONPATH: exampleDir },
+        env: { ...provisionedExampleEnv(setup), PYTHONPATH: exampleDir },
       });
     },
   });
@@ -301,7 +327,11 @@ const pollStudioGenerationSucceeded = async ({
   throw new Error(`Timed out waiting for generation ${generationId} to succeed`);
 };
 
-export const runScriptToVideoStudioHappyPath = async (): Promise<ExampleE2eCaseResult> => {
+export const runScriptToVideoStudioHappyPath = async ({
+  setup,
+}: {
+  setup: LocalExamplesEnvSetup;
+}): Promise<ExampleE2eCaseResult> => {
   return await runCase({
     id: "script-to-video-studio",
     label: "Script to Video Studio",
@@ -326,6 +356,7 @@ export const runScriptToVideoStudioHappyPath = async (): Promise<ExampleE2eCaseR
           command: "npm",
           args: ["run", "dev:server"],
           cwd: exampleDir,
+          env: provisionedExampleEnv(setup),
         }),
       );
 
@@ -362,7 +393,7 @@ export const runScriptToVideoStudioHappyPath = async (): Promise<ExampleE2eCaseR
 
         await pollStudioGenerationSucceeded({
           generationId,
-          timeoutMs: 45 * 60_000,
+          timeoutMs: SCRIPT_TO_VIDEO_STUDIO_GENERATION_TIMEOUT_MS,
         });
       } finally {
         for (const proc of processes.reverse()) {
@@ -393,7 +424,7 @@ export const runExampleE2eCases = async ({
   const results: ExampleE2eCaseResult[] = [];
 
   if (selected.has("ai-social-content")) {
-    results.push(await runAiSocialContentHappyPath());
+    results.push(await runAiSocialContentHappyPath({ setup }));
   }
 
   if (selected.has("talking-avatar-webhook")) {
@@ -401,11 +432,11 @@ export const runExampleE2eCases = async ({
   }
 
   if (selected.has("ai-image-editor")) {
-    results.push(await runAiImageEditorHappyPath());
+    results.push(await runAiImageEditorHappyPath({ setup }));
   }
 
   if (selected.has("script-to-video-studio")) {
-    results.push(await runScriptToVideoStudioHappyPath());
+    results.push(await runScriptToVideoStudioHappyPath({ setup }));
   }
 
   return results;

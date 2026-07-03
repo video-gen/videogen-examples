@@ -98,6 +98,15 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
     const run = await vg.workflows.scriptToVideo({
       script,
       aspectRatio,
+      visualStyle: {
+        type: "AI_IMAGE",
+        aiStyle: "loose watercolor illustration with visible brushstrokes and soft color bleeds",
+      },
+      quality: "HIGH",
+      remixActions: [
+        { type: "ENABLE_CAPTIONS" },
+        { type: "ADD_TRANSITIONS", sectionTransition: "DYNAMIC", assetTransition: "FADE" },
+      ],
     });
     await ref.update({
       workflowRunId: run.workflowRunId,
