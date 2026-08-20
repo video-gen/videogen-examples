@@ -7,11 +7,11 @@ https://github.com/user-attachments/assets/PLACEHOLDER-VIDEO-DEMO
 ## How it works
 
 ```
-POST /generate-avatar { text: "Hello world" }
+POST /generate-avatar { text: "Hello world", actor_entity_id: "vg_enti_..." }
         │
         ▼
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
-│  Text-to-Speech │ ──► │  Audio file ready │ ──► │  Audio-to-Avatar     │
+│  Text-to-Speech │ ──► │  Audio file ready │ ──► │  Generate Avatar     │
 │  (polling, ~5s) │     │                  │     │  (webhook, ~60s)     │
 └─────────────────┘     └──────────────────┘     └──────────┬───────────┘
                                                             │
@@ -39,9 +39,9 @@ POST /generate-avatar { text: "Hello world" }
 ## VideoGen endpoints used
 
 - `POST /v1/tools/text-to-speech` — Generate speech from text
-- `POST /v1/tools/audio-to-avatar-clip` — Create avatar video from audio
-- `GET /v1/resources/tts-voices` — List available voices
-- `GET /v1/resources/avatar-presenters` — List available presenters
+- `POST /v1/tools/generate-avatar` — Create an ACTOR entity avatar video from audio
+- `GET /v1/resources/tts-voices` — List available voices (`GET /voices` on this server)
+- `GET /v1/entities?entityType=ACTOR` — List actor entities (`GET /actors` on this server)
 - Webhook signature verification via `verify_webhook_signature`
 
 ## Setup
@@ -49,7 +49,7 @@ POST /generate-avatar { text: "Hello world" }
 ### Prerequisites
 
 - Python 3.11+
-- A [VideoGen API key](https://app.videogen.io/developers)
+- A [VideoGen API key](https://app.videogen.io/api)
 - [ngrok](https://ngrok.com) for local webhook testing (or deploy to a public URL)
 
 ### Install and run
@@ -82,7 +82,7 @@ Copy the forwarding URL (e.g. `https://abc123.ngrok.app`).
 
 ```bash
 curl -X POST https://api.videogen.io/v1/webhooks/endpoints \
-  -H "Authorization: Bearer $VIDEOGEN_API_KEY" \
+  -H "Authorization: Bearer sk_videogen_live_..." \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://abc123.ngrok.app/webhooks/videogen",
@@ -118,11 +118,16 @@ Start a talking avatar generation.
 ```json
 {
   "text": "Hello! Welcome to our product demo.",
-  "voice_id": "optional_voice_id",
-  "presenter_id": "optional_presenter_id",
+  "actor_entity_id": "vg_enti_...",
+  "avatar_quality": "HIGH",
+  "voice_id": "vg_voic_...",
   "callback_url": "https://your-app.com/webhook"
 }
 ```
+
+`actor_entity_id` is required and must identify an ACTOR entity with at least one image reference. `avatar_quality` is optional and accepts `LOW`, `STANDARD`, `HIGH`, or `MAX`.
+
+Create or list an ACTOR with the Entities API. If you create one, upload a portrait with the Files API and attach its `fileId` through `POST /v1/entities/{entityId}/references`, then use the returned `entityId` here.
 
 ### `GET /jobs/{job_id}`
 
@@ -131,10 +136,6 @@ Check job status. Returns `generating_speech`, `generating_avatar`, `succeeded`,
 ### `GET /voices`
 
 List available TTS voices.
-
-### `GET /presenters`
-
-List available avatar presenters.
 
 ### `POST /webhooks/videogen`
 

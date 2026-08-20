@@ -1,5 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { importWithRetry } from "@videogen/defs";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +16,17 @@ export const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 };
 
+/**
+ * The e2e-tests-job image sets `NODE_ENV=production` so the orchestrator can
+ * run with a remote `VIDEOGEN_ENV`. Example apps still need a development
+ * install (firebase-tools, Next/Tailwind, TypeScript) and `next dev`.
+ */
+export const exampleChildEnv = (env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ...env,
+  NODE_ENV: "development",
+});
+
 export const runCommand = async ({
   command,
   args,
@@ -31,7 +41,7 @@ export const runCommand = async ({
   await new Promise<void>((resolveCommand, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: { ...process.env, ...env },
+      env: exampleChildEnv(env),
       stdio: "inherit",
       shell: false,
     });
@@ -63,7 +73,7 @@ export const startManagedProcess = ({
 }): ManagedProcess => {
   const child = spawn(command, args, {
     cwd,
-    env: { ...process.env, ...env },
+    env: exampleChildEnv(env),
     stdio: "pipe",
     shell: false,
   });
@@ -113,6 +123,31 @@ export const waitForHttpOk = async ({
       if (response.ok) {
         return;
       }
+    } catch {
+      // Retry.
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  throw new Error(`Timed out waiting for ${url}`);
+};
+
+export const waitForHttpReachable = async ({
+  url,
+  timeoutMs = 120_000,
+  pollIntervalMs = 1_000,
+}: {
+  url: string;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      await fetch(url);
+      return;
     } catch {
       // Retry.
     }
@@ -176,7 +211,7 @@ export const readJsonStringField = ({
 
 export const ensureNpmInstalled = async ({
   cwd,
-  installArgs = ["install"],
+  installArgs = ["install", "--include=dev"],
 }: {
   cwd: string;
   installArgs?: string[];
@@ -219,7 +254,7 @@ export const ensureExamplePythonVenv = async ({
 
   // PyPI 1.0.0 was published before pyproject.toml picked up SDK ext deps; install them
   // from the monorepo manifest until the next videogen PyPI release.
-  const sdkExtRequirementsPath = resolve(REPO_ROOT, "api/sdks/python/requirements_ext.txt");
+  const sdkExtRequirementsPath = resolve(REPO_ROOT, "sdk-python/requirements_ext.txt");
   if (existsSync(sdkExtRequirementsPath)) {
     await runCommand({
       command: pythonPath,
@@ -247,42 +282,7 @@ export const readFirestoreStringField = ({
   return typeof stringValue === "string" ? stringValue : null;
 };
 
-export const loadVideoGenSdk = async (): Promise<{
-  VideoGenClient: new (opts: { token: string; baseUrl: string }) => VideoGenSdkClient;
-  pollExecutedTool: (
-    client: VideoGenSdkClient,
-    toolExecutionId: string,
-    options?: { pollIntervalMs?: number; timeoutMs?: number },
-  ) => Promise<{ status?: string }>;
-}> => {
-  const sdkEntry = resolve(REPO_ROOT, "api/sdks/typescript/dist/esm/index.mjs");
-
-  if (!existsSync(sdkEntry)) {
-    throw new Error(
-      "TypeScript SDK not built. Run: cd api/sdks/typescript && pnpm install && pnpm build",
-    );
-  }
-
-  const sdkModule = await importWithRetry(() => import(sdkEntry));
-
-  if (
-    typeof sdkModule !== "object" ||
-    sdkModule == null ||
-    !("VideoGenClient" in sdkModule) ||
-    !("pollExecutedTool" in sdkModule) ||
-    typeof sdkModule.VideoGenClient !== "function" ||
-    typeof sdkModule.pollExecutedTool !== "function"
-  ) {
-    throw new Error("Unexpected SDK export shape from api/sdks/typescript/dist");
-  }
-
-  return {
-    VideoGenClient: sdkModule.VideoGenClient,
-    pollExecutedTool: sdkModule.pollExecutedTool,
-  };
-};
-
-type VideoGenSdkClient = object;
+const TERMINAL_TOOL_EXECUTION_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 export const pollToolExecutionUntilTerminal = async ({
   apiKey,
@@ -295,17 +295,32 @@ export const pollToolExecutionUntilTerminal = async ({
   toolExecutionId: string;
   timeoutMs: number;
 }): Promise<{ status: string }> => {
-  const { VideoGenClient, pollExecutedTool } = await loadVideoGenSdk();
-  const client = new VideoGenClient({ token: apiKey, baseUrl });
-  const result = await pollExecutedTool(client, toolExecutionId, {
-    pollIntervalMs: 2_000,
-    timeoutMs,
-  });
+  const deadline = Date.now() + timeoutMs;
+  const pollIntervalMs = 2_000;
+  const url = `${baseUrl.replace(/\/$/, "")}/v1/tools/executions/${toolExecutionId}`;
 
-  const status = result.status ?? "unknown";
-  if (status !== "succeeded") {
-    throw new Error(`Tool execution ${toolExecutionId} ended with status=${status}`);
+  while (Date.now() < deadline) {
+    const executed = readJsonObject(
+      await fetchJson({
+        url,
+        init: { headers: { Authorization: `Bearer ${apiKey}` } },
+      }),
+    );
+
+    const status = readJsonStringField({ obj: executed, fieldName: "status" }) ?? "unknown";
+
+    if (TERMINAL_TOOL_EXECUTION_STATUSES.has(status)) {
+      if (status !== "succeeded") {
+        throw new Error(`Tool execution ${toolExecutionId} ended with status=${status}`);
+      }
+
+      return { status };
+    }
+
+    await sleep(pollIntervalMs);
   }
 
-  return { status };
+  throw new Error(
+    `Tool execution ${toolExecutionId} did not reach a terminal state within ${timeoutMs}ms.`,
+  );
 };

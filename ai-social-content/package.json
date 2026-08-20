@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@videogen/player-react": "^0.1.4",
-    "@videogen/sdk": "^1.1.6",
+    "@videogen/sdk": "^2.1.1",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -21,7 +21,8 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "tailwindcss": "^4.1.0",
-    "typescript": "^5.8.0"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

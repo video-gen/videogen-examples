@@ -4,7 +4,3 @@ export function errMessage(err: unknown): string {
   }
   return String(err);
 }
-
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}

@@ -37,6 +37,9 @@ export async function ensureWebhookEndpoint(): Promise<void> {
       url,
       events: [...WEBHOOK_EVENTS],
     });
+    if (endpoint.signingSecret == null) {
+      throw new Error("createWebhookEndpoint missing signingSecret");
+    }
     webhookSecret = endpoint.signingSecret;
     console.log(`[webhook] Registered endpoint: ${url}`);
     console.log(

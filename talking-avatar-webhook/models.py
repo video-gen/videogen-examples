@@ -1,10 +1,18 @@
+from typing import Literal
+
 from pydantic import BaseModel
+
+
+class ActorInfo(BaseModel):
+    actor_entity_id: str
+    name: str
 
 
 class GenerateAvatarRequest(BaseModel):
     text: str
+    actor_entity_id: str
+    avatar_quality: Literal["LOW", "STANDARD", "HIGH", "MAX"] | None = None
     voice_id: str | None = None
-    presenter_id: str | None = None
     callback_url: str | None = None
 
 
@@ -21,8 +29,3 @@ class VoiceInfo(BaseModel):
     voice_id: str
     display_name: str
     language: str
-
-
-class PresenterInfo(BaseModel):
-    presenter_id: str
-    display_name: str

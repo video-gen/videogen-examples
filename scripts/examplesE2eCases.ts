@@ -16,6 +16,7 @@ import {
   sleep,
   startManagedProcess,
   waitForHttpOk,
+  waitForHttpReachable,
   type ManagedProcess,
 } from "./examplesE2eUtil.js";
 
@@ -95,21 +96,22 @@ export const runAiSocialContentHappyPath = async ({
       const exampleDir = resolve(REPO_ROOT, "examples/ai-social-content");
       await ensureNpmInstalled({ cwd: exampleDir });
 
+      const socialContentOrigin = `http://127.0.0.1:${SOCIAL_CONTENT_PORT}`;
       const devServer = startManagedProcess({
         name: "ai-social-content",
         command: "npm",
-        args: ["run", "dev", "--", "-p", String(SOCIAL_CONTENT_PORT)],
+        args: ["run", "dev", "--", "-p", String(SOCIAL_CONTENT_PORT), "-H", "127.0.0.1"],
         cwd: exampleDir,
         env: provisionedExampleEnv(setup),
       });
 
       try {
-        await waitForHttpOk({ url: `http://localhost:${SOCIAL_CONTENT_PORT}`, timeoutMs: 180_000 });
+        await waitForHttpOk({ url: socialContentOrigin, timeoutMs: 180_000 });
 
         const browser = await chromium.launch({ headless: true });
         try {
           const page = await browser.newPage();
-          await page.goto(`http://localhost:${SOCIAL_CONTENT_PORT}`, { waitUntil: "networkidle" });
+          await page.goto(socialContentOrigin, { waitUntil: "networkidle" });
 
           await page.getByLabel("Content description").fill(
             "Create only one static social image (no video or voiceover): a simple green leaf icon.",
@@ -124,6 +126,159 @@ export const runAiSocialContentHappyPath = async ({
       } finally {
         await devServer.stop();
       }
+    },
+  });
+};
+
+const readStringFieldAnyCasing = ({
+  obj,
+  fieldNames,
+}: {
+  obj: Record<string, unknown>;
+  fieldNames: string[];
+}): string | null => {
+  for (const fieldName of fieldNames) {
+    const value = readJsonStringField({ obj, fieldName });
+    if (value != null) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const developerApiHeaders = (apiKey: string): HeadersInit => ({
+  Authorization: `Bearer ${apiKey}`,
+  "Content-Type": "application/json",
+});
+
+/**
+ * The talking-avatar example only lists ACTOR entities that already have a
+ * reference image. Remote e2e uses a long-lived API key that may have none.
+ */
+const ensureTalkingAvatarActorWithReference = async ({
+  setup,
+}: {
+  setup: LocalExamplesEnvSetup;
+}): Promise<void> => {
+  const baseUrl = setup.baseUrl.replace(/\/$/, "");
+  const listed = readJsonObject(
+    await fetchJson({
+      url: `${baseUrl}/v1/entities?entityType=ACTOR&limit=50`,
+      init: { headers: developerApiHeaders(setup.apiKey) },
+    }),
+  );
+  const entities = listed.entities;
+  if (Array.isArray(entities)) {
+    for (const entry of entities) {
+      const entity = readJsonObject(entry);
+      const entityId = readStringFieldAnyCasing({
+        obj: entity,
+        fieldNames: ["entityId", "entity_id"],
+      });
+      const references = entity.references;
+      const isBuiltIn = entity.isBuiltIn === true || entity.is_built_in === true;
+      const actorConfig =
+        entity.actorConfig != null && typeof entity.actorConfig === "object"
+          ? readJsonObject(entity.actorConfig)
+          : entity.actor_config != null && typeof entity.actor_config === "object"
+            ? readJsonObject(entity.actor_config)
+            : null;
+      const hasAvatarPresenter =
+        actorConfig?.hasAvatarPresenter === true || actorConfig?.has_avatar_presenter === true;
+      if (
+        entityId != null &&
+        (isBuiltIn ||
+          hasAvatarPresenter ||
+          (Array.isArray(references) && references.length > 0))
+      ) {
+        return;
+      }
+    }
+  }
+
+  const created = readJsonObject(
+    await fetchJson({
+      url: `${baseUrl}/v1/entities`,
+      init: {
+        method: "POST",
+        headers: developerApiHeaders(setup.apiKey),
+        body: JSON.stringify({
+          entityType: "ACTOR",
+          name: "Examples e2e talking avatar",
+          description: "Seeded by examples-e2e when the API key has no actor references.",
+        }),
+      },
+    }),
+  );
+  const actorEntityId = readStringFieldAnyCasing({
+    obj: created,
+    fieldNames: ["entityId", "entity_id"],
+  });
+  if (actorEntityId == null) {
+    throw new Error(`create entity did not return an id: ${JSON.stringify(created)}`);
+  }
+
+  const started = readJsonObject(
+    await fetchJson({
+      url: `${baseUrl}/v1/tools/generate-image`,
+      init: {
+        method: "POST",
+        headers: developerApiHeaders(setup.apiKey),
+        body: JSON.stringify({
+          prompt:
+            "Photorealistic head-and-shoulders portrait of an adult looking at the camera, studio lighting, plain background.",
+          quality: "LOW",
+          numResults: 1,
+        }),
+      },
+    }),
+  );
+  const toolExecutionId = readStringFieldAnyCasing({
+    obj: started,
+    fieldNames: ["toolExecutionId", "tool_execution_id"],
+  });
+  if (toolExecutionId == null) {
+    throw new Error(`generate-image did not return an execution id: ${JSON.stringify(started)}`);
+  }
+
+  await pollToolExecutionUntilTerminal({
+    apiKey: setup.apiKey,
+    baseUrl,
+    toolExecutionId,
+    timeoutMs: 180_000,
+  });
+
+  const executed = readJsonObject(
+    await fetchJson({
+      url: `${baseUrl}/v1/tools/executions/${toolExecutionId}`,
+      init: { headers: developerApiHeaders(setup.apiKey) },
+    }),
+  );
+  const results = executed.results;
+  const firstResult =
+    Array.isArray(results) && results[0] != null ? readJsonObject(results[0]) : null;
+  const portraitFileId =
+    firstResult == null
+      ? null
+      : readStringFieldAnyCasing({
+          obj: firstResult,
+          fieldNames: ["fileId", "file_id"],
+        });
+  if (portraitFileId == null) {
+    throw new Error(`generate-image succeeded without a file id: ${JSON.stringify(executed)}`);
+  }
+
+  await fetchJson({
+    url: `${baseUrl}/v1/entities/${actorEntityId}/references`,
+    init: {
+      method: "POST",
+      headers: developerApiHeaders(setup.apiKey),
+      body: JSON.stringify({
+        fileId: portraitFileId,
+        isDefault: true,
+        description: "Examples e2e talking-avatar reference",
+      }),
     },
   });
 };
@@ -157,11 +312,13 @@ export const runTalkingAvatarHappyPath = async ({
           timeoutMs: 120_000,
         });
 
+        await ensureTalkingAvatarActorWithReference({ setup });
+
         const voicesRaw = readJsonArray(
           await fetchJson({ url: `http://127.0.0.1:${TALKING_AVATAR_PORT}/voices` }),
         );
-        const presentersRaw = readJsonArray(
-          await fetchJson({ url: `http://127.0.0.1:${TALKING_AVATAR_PORT}/presenters` }),
+        const actorsRaw = readJsonArray(
+          await fetchJson({ url: `http://127.0.0.1:${TALKING_AVATAR_PORT}/actors` }),
         );
 
         const voices: string[] = [];
@@ -175,19 +332,21 @@ export const runTalkingAvatarHappyPath = async ({
           }
         }
 
-        const presenters: string[] = [];
-        for (const entry of presentersRaw) {
-          const presenterId = readJsonStringField({
+        const actors: string[] = [];
+        for (const entry of actorsRaw) {
+          const actorEntityId = readJsonStringField({
             obj: readJsonObject(entry),
-            fieldName: "presenter_id",
+            fieldName: "actor_entity_id",
           });
-          if (presenterId != null) {
-            presenters.push(presenterId);
+          if (actorEntityId != null) {
+            actors.push(actorEntityId);
           }
         }
 
-        if (voices.length === 0 || presenters.length === 0) {
-          throw new Error("Expected at least one voice and one presenter from the example server");
+        if (voices.length === 0 || actors.length === 0) {
+          throw new Error(
+            `Expected at least one voice and one actor from the example server (voices=${voices.length}, actors=${actors.length})`,
+          );
         }
 
         const job = readJsonObject(
@@ -199,7 +358,7 @@ export const runTalkingAvatarHappyPath = async ({
               body: JSON.stringify({
                 text: "Hello from the talking avatar examples e2e test.",
                 voice_id: voices[0],
-                presenter_id: presenters[0],
+                actor_entity_id: actors[0],
               }),
             },
           }),
@@ -263,6 +422,18 @@ export const runAiImageEditorHappyPath = async ({
   });
 };
 
+const waitForFirebaseEmulators = async (): Promise<void> => {
+  await waitForHttpOk({
+    url: `${AUTH_EMULATOR_URL}/emulator/v1/projects/demo-script-to-video/config`,
+    timeoutMs: 180_000,
+  });
+
+  await waitForHttpReachable({
+    url: `http://${FIRESTORE_EMULATOR_HOST}/`,
+    timeoutMs: 180_000,
+  });
+};
+
 const signUpFirebaseEmulatorUser = async (): Promise<string> => {
   const email = `examples-e2e-${Date.now()}@videogen.io`;
   const password = "examples-e2e-password";
@@ -293,16 +464,23 @@ const signUpFirebaseEmulatorUser = async (): Promise<string> => {
 
 const pollStudioGenerationSucceeded = async ({
   generationId,
+  idToken,
   timeoutMs,
 }: {
   generationId: string;
+  idToken: string;
   timeoutMs: number;
 }): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   const url = `http://${FIRESTORE_EMULATOR_HOST}/v1/projects/demo-script-to-video/databases/(default)/documents/generations/${generationId}`;
 
   while (Date.now() < deadline) {
-    const doc = readJsonObject(await fetchJson({ url }));
+    const doc = readJsonObject(
+      await fetchJson({
+        url,
+        init: { headers: { Authorization: `Bearer ${idToken}` } },
+      }),
+    );
     const fieldsValue = doc.fields;
     const fields =
       typeof fieldsValue === "object" && fieldsValue != null && !Array.isArray(fieldsValue)
@@ -361,6 +539,8 @@ export const runScriptToVideoStudioHappyPath = async ({
       );
 
       try {
+        await waitForFirebaseEmulators();
+
         await waitForHttpOk({
           url: `http://127.0.0.1:${STUDIO_SERVER_PORT}/api/health`,
           timeoutMs: 180_000,
@@ -393,6 +573,7 @@ export const runScriptToVideoStudioHappyPath = async ({
 
         await pollStudioGenerationSucceeded({
           generationId,
+          idToken,
           timeoutMs: SCRIPT_TO_VIDEO_STUDIO_GENERATION_TIMEOUT_MS,
         });
       } finally {

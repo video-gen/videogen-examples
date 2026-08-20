@@ -101,6 +101,7 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
       visualStyle: {
         type: "AI_IMAGE",
         aiStyle: "loose watercolor illustration with visible brushstrokes and soft color bleeds",
+        restyleFeaturedBRollWithAiStyle: true,
       },
       quality: "HIGH",
       remixActions: [

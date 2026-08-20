@@ -2,7 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, generationsCollection } from "./firebaseAdmin.js";
 import { vg } from "./videogen.js";
 import { resolveQuality } from "./presets.js";
-import { errMessage, sleep } from "./util.js";
+import { errMessage } from "./util.js";
 
 const GENERATE_POLL_MS = 2_500;
 const EXPORT_POLL_MS = 3_000;
@@ -36,38 +36,26 @@ async function driveGenerate(id: string): Promise<void> {
   // Poll the workflow run for its progress percentage until it reaches a
   // terminal state. (Webhooks tell us about completion, but only polling gives
   // us a live progress bar.)
-  for (;;) {
-    const run = await vg.workflows.getWorkflowRun({ workflowRunId });
-    const progress =
-      typeof run.progressPercentage === "number"
-        ? Math.max(0, Math.min(100, Math.round(run.progressPercentage)))
-        : 0;
-
-    if (run.status === "pending" || run.status === "running") {
-      await patch(id, { status: "generating", step: "generate", generateProgress: progress });
-      await sleep(GENERATE_POLL_MS);
-      continue;
-    }
-
-    if (run.status === "succeeded") {
-      await patch(id, {
-        status: "generated",
+  const run = await vg.pollWorkflowRun({
+    workflowRunId,
+    pollIntervalMs: GENERATE_POLL_MS,
+    onProgress: (progressPercentage) => {
+      void patch(id, {
+        status: "generating",
         step: "generate",
-        generateProgress: 100,
-        projectId: run.projectId,
-        projectUrl: run.projectUrl,
+        generateProgress: Math.max(0, Math.min(100, Math.round(progressPercentage))),
       });
-      await maybeStartExport(id);
-      return;
-    }
+    },
+  });
 
-    // failed | cancelled
-    await patch(id, {
-      status: "failed",
-      error: run.error?.message ?? `Workflow ${run.status}.`,
-    });
-    return;
-  }
+  await patch(id, {
+    status: "generated",
+    step: "generate",
+    generateProgress: 100,
+    projectId: run.projectId,
+    projectUrl: run.projectUrl,
+  });
+  await maybeStartExport(id);
 }
 
 /**
@@ -147,49 +135,24 @@ async function driveExport(
   projectId: string,
   quality: ReturnType<typeof resolveQuality>,
 ): Promise<void> {
-  const { exportId } = await vg.projects.exportProject({ projectId, quality });
-  await patch(id, { exportId, exportProgress: 0 });
+  const projectExport = await vg.projects.exportAndWait(
+    { projectId, quality },
+    {
+      pollIntervalMs: EXPORT_POLL_MS,
+      onProgress: (progressPercentage) => {
+        void patch(id, {
+          exportProgress: Math.max(0, Math.min(100, Math.round(progressPercentage))),
+        });
+      },
+    },
+  );
 
-  // Poll the export for its real progress percentage until it reaches a
-  // terminal state.
-  for (;;) {
-    const projectExport = await vg.projects.getProjectExport({ projectId, exportId });
-
-    if (projectExport.status === "succeeded") {
-      await patch(id, {
-        status: "ready",
-        step: "done",
-        exportProgress: 100,
-        downloadUrl: projectExport.downloadUrl ?? null,
-        thumbnailUrl: projectExport.thumbnailUrl ?? null,
-      });
-      return;
-    }
-
-    if (projectExport.status === "failed") {
-      await patch(id, {
-        status: "failed",
-        error: projectExport.error?.message ?? "Export failed.",
-      });
-      return;
-    }
-
-    const progress = readExportProgress(projectExport);
-    if (progress != null) {
-      await patch(id, { exportProgress: progress });
-    }
-    await sleep(EXPORT_POLL_MS);
-  }
-}
-
-function readExportProgress(
-  projectExport: Awaited<ReturnType<typeof vg.projects.getProjectExport>>,
-): number | null {
-  if (
-    "progressPercentage" in projectExport &&
-    typeof projectExport.progressPercentage === "number"
-  ) {
-    return Math.max(0, Math.min(100, Math.round(projectExport.progressPercentage)));
-  }
-  return null;
+  await patch(id, {
+    status: "ready",
+    step: "done",
+    exportId: projectExport.exportId,
+    exportProgress: 100,
+    downloadUrl: projectExport.downloadUrl ?? null,
+    thumbnailUrl: projectExport.thumbnailUrl ?? null,
+  });
 }

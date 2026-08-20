@@ -10,7 +10,8 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "rootDir": "src"
   },
   "include": ["src/**/*.ts"]
 }

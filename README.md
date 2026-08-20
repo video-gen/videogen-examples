@@ -23,7 +23,7 @@ From the repo root, with the local API stack running (`pnpm dev:api`):
 pnpm setup:local-examples
 ```
 
-This auto-creates a PRO workspace + developer API key and writes `VIDEOGEN_API_KEY` (and `VIDEOGEN_API_URL=http://localhost:4010`) into every example's env file. It also loads `OPENAI_API_KEY` from Secret Manager (`OpenAI-Examples-ApiKey_LOCAL`) for the AI Image Editor example. No browser visit to `/developers` required. Re-run anytime to rotate the shared key.
+This auto-creates a PRO workspace + developer API key and writes `VIDEOGEN_API_KEY` (and `VIDEOGEN_API_URL=http://localhost:4010`) into every example's env file. It also loads `OPENAI_API_KEY` from Secret Manager (`OpenAI-Examples-ApiKey_LOCAL`) for the AI Image Editor example. No browser visit to `/api` required. Re-run anytime to rotate the shared key.
 
 Run happy-path E2E on every example (auto-setup, no manual env):
 
@@ -36,7 +36,7 @@ See `.cursor/skills/examples-e2e/SKILL.md` for prerequisites (local API, GCP aut
 
 ### External checkout
 
-1. Get an API key at [app.videogen.io/developers](https://app.videogen.io/developers)
+1. Get an API key at [app.videogen.io/api](https://app.videogen.io/api)
 2. Clone this repository:
 
 ```bash

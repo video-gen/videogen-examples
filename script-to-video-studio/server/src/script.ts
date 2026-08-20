@@ -27,11 +27,13 @@ export async function handleGenerateScript(req: AuthedRequest, res: Response): P
       : `Write a script about:\n\n${prompt}`;
 
   try {
-    const { text } = await vg.text.generateText({
+    const response = await vg.text.generateText({
       prompt: llmPrompt,
       system: SYSTEM_PROMPT,
+      quality: "STANDARD",
+      maxOutputTokens: 512,
     });
-    res.json({ script: text.trim() });
+    res.json({ script: response.text.trim() });
   } catch (err) {
     res.status(502).json({ error: "Failed to generate script.", detail: errMessage(err) });
   }

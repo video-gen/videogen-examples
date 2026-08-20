@@ -21,11 +21,8 @@ https://github.com/user-attachments/assets/PLACEHOLDER-VIDEO-DEMO
 ## VideoGen endpoints used
 
 - `POST /v1/text/generate` — Plan which assets to create (text generation)
-- `POST /v1/tools/generate-image` — Generate images from text
-- `POST /v1/tools/generate-video-clip` — Generate video clips from text
-- `POST /v1/tools/text-to-speech` — Convert text to speech
-- `POST /v1/files/{id}/enable-public-preview` — Enable video embedding
-- `POST /v1/files/{id}/hydrate` — Get download URLs
+- `generateImageAndWait` / `generateVideoClipAndWait` / `textToSpeechAndWait` — start tools and poll until done
+- `createPublicPreview` — enable + wait for a permanent public preview URL
 - `GET /v1/resources/tts-voices` — List available voices
 
 ## Setup
@@ -33,7 +30,7 @@ https://github.com/user-attachments/assets/PLACEHOLDER-VIDEO-DEMO
 ### Prerequisites
 
 - Node.js 18+
-- A [VideoGen API key](https://app.videogen.io/developers)
+- A [VideoGen API key](https://app.videogen.io/api)
 
 ### Install and run
 
@@ -52,7 +49,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable           | Description                                                                                                                |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `VIDEOGEN_API_KEY` | Your VideoGen API key ([get one here](https://app.videogen.io/developers))                                                 |
+| `VIDEOGEN_API_KEY` | Your VideoGen API key ([get one here](https://app.videogen.io/api))                                                 |
 | `VIDEOGEN_API_URL` | Optional. Defaults to `https://api.videogen.io`. Set to `http://localhost:4010` only if you run the Developer API locally. |
 
 ## Deploy to Vercel

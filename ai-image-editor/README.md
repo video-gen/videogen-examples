@@ -49,7 +49,7 @@ Agent: [upscales the first logo, shows high-res URL]
 ### Prerequisites
 
 - Python 3.11+
-- A [VideoGen API key](https://app.videogen.io/developers)
+- A [VideoGen API key](https://app.videogen.io/api)
 - An [OpenAI API key](https://platform.openai.com/api-keys)
 
 ### Install and run
@@ -72,7 +72,7 @@ Open [http://localhost:7860](http://localhost:7860).
 
 | Variable           | Description                                                                |
 | ------------------ | -------------------------------------------------------------------------- |
-| `VIDEOGEN_API_KEY` | Your VideoGen API key ([get one here](https://app.videogen.io/developers)) |
+| `VIDEOGEN_API_KEY` | Your VideoGen API key ([get one here](https://app.videogen.io/api)) |
 | `OPENAI_API_KEY`   | Your OpenAI API key for the Agents SDK                                     |
 
 ## Deploy to Hugging Face Spaces

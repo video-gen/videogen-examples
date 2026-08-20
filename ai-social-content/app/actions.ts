@@ -1,14 +1,19 @@
 "use server";
 
-import { VideoGenClient, pollExecutedTool, pollPublicPreview } from "@videogen/sdk";
+import {
+  VideoGen,
+  createPublicPreview,
+  type ExecutedTool,
+} from "@videogen/sdk";
 import { z } from "zod";
 
 const EXAMPLE_IMAGE_QUALITY = "STANDARD";
 const EXAMPLE_VIDEO_QUALITY = "STANDARD";
 
-const vg = new VideoGenClient({
-  token: process.env.VIDEOGEN_API_KEY!,
-  ...(process.env.VIDEOGEN_API_URL != null && process.env.VIDEOGEN_API_URL !== ""
+const vg = new VideoGen({
+  apiKey: process.env.VIDEOGEN_API_KEY!,
+  ...(process.env.VIDEOGEN_API_URL != null &&
+  process.env.VIDEOGEN_API_URL !== ""
     ? { baseUrl: process.env.VIDEOGEN_API_URL }
     : {}),
 });
@@ -24,29 +29,15 @@ export type GenerateResponse = {
   summary: string;
 };
 
-async function enableAndPollPublicPreview({
-  fileId,
-  waitForEmbedPlaybackId,
-}: {
-  fileId: string;
-  waitForEmbedPlaybackId: boolean;
-}): Promise<{
-  publicPreviewUrl: string;
-  publicPlaybackId: string | null;
-  publicHlsUrl: string | null;
-}> {
-  await vg.files.enablePublicPreview({ fileId });
-  return await pollPublicPreview(vg, fileId, { waitForEmbedPlaybackId });
-}
-
 export async function getVoices() {
   const res = await vg.resources.listTtsVoices();
+
   return res.ttsVoices
-    .filter((v) => v.supportsDirectToolExecution)
-    .map((v) => ({
-      id: v.voiceId,
-      name: v.displayName,
-      language: v.languageCode,
+    .filter((voice) => voice.supportsDirectToolExecution)
+    .map((voice) => ({
+      id: voice.voiceId,
+      name: voice.displayName,
+      language: voice.languageCode,
     }));
 }
 
@@ -78,7 +69,8 @@ Rules:
 function parseContentPlan(raw: string, fallbackTopic: string): ContentPlan {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
-  const jsonSlice = start !== -1 && end !== -1 && end > start ? raw.slice(start, end + 1) : raw;
+  const jsonSlice =
+    start !== -1 && end !== -1 && end > start ? raw.slice(start, end + 1) : raw;
 
   try {
     const parsed: unknown = JSON.parse(jsonSlice);
@@ -103,75 +95,95 @@ function parseContentPlan(raw: string, fallbackTopic: string): ContentPlan {
   };
 }
 
+async function previewToolResult({
+  execution,
+  description,
+  type,
+}: {
+  execution: ExecutedTool;
+  description: string;
+  type: GenerationResult["type"];
+}): Promise<GenerationResult | null> {
+  const fileId = execution.results[0]?.fileId;
+  if (fileId == null) {
+    return null;
+  }
+
+  const preview = await createPublicPreview({
+    client: vg,
+    fileId,
+    waitForEmbedPlaybackId: false,
+  });
+  const url = preview.staticPublicPreviewSource?.url;
+  if (url == null) {
+    return null;
+  }
+
+  return {
+    type,
+    url,
+    description,
+  };
+}
+
 export async function generate(
   prompt: string,
   voiceId?: string,
 ): Promise<GenerateResponse> {
   const results: GenerationResult[] = [];
 
-  const { text } = await vg.text.generateText({
+  const textResponse = await vg.text.generateText({
     prompt: `Topic: "${prompt}"`,
     system: PLAN_SYSTEM_PROMPT,
-    model: "STANDARD",
+    quality: "STANDARD",
     maxOutputTokens: 600,
   });
 
-  const plan = parseContentPlan(text, prompt);
+  const plan = parseContentPlan(textResponse.text, prompt);
 
   if (plan.imagePrompt != null) {
-    const { toolExecutionId } = await vg.tools.generateImage({
+    const execution = await vg.tools.generateImageAndWait({
       prompt: plan.imagePrompt,
       quality: EXAMPLE_IMAGE_QUALITY,
     });
-    const execution = await pollExecutedTool(vg, toolExecutionId);
-    if (execution.status === "succeeded" && execution.results?.[0]) {
-      const preview = await enableAndPollPublicPreview({
-        fileId: execution.results[0].fileId,
-        waitForEmbedPlaybackId: false,
-      });
-      results.push({
-        type: "image",
-        url: preview.publicPreviewUrl,
-        description: plan.imagePrompt,
-      });
+    const result = await previewToolResult({
+      execution,
+      description: plan.imagePrompt,
+      type: "image",
+    });
+    if (result != null) {
+      results.push(result);
     }
   }
 
   if (plan.videoPrompt != null) {
-    const { toolExecutionId } = await vg.tools.generateVideoClip({
+    const execution = await vg.tools.generateVideoClipAndWait({
       prompt: plan.videoPrompt,
       quality: EXAMPLE_VIDEO_QUALITY,
+      generateAudio: false,
     });
-    const execution = await pollExecutedTool(vg, toolExecutionId);
-    if (execution.status === "succeeded" && execution.results?.[0]) {
-      const preview = await enableAndPollPublicPreview({
-        fileId: execution.results[0].fileId,
-        waitForEmbedPlaybackId: false,
-      });
-      results.push({
-        type: "video",
-        url: preview.publicPreviewUrl,
-        description: plan.videoPrompt,
-      });
+    const result = await previewToolResult({
+      execution,
+      description: plan.videoPrompt,
+      type: "video",
+    });
+    if (result != null) {
+      results.push(result);
     }
   }
 
-  if (plan.speechText != null) {
-    const { toolExecutionId } = await vg.tools.textToSpeech({
+  if (plan.speechText != null && voiceId != null) {
+    const execution = await vg.tools.textToSpeechAndWait({
       ttsText: plan.speechText,
       voiceId,
     });
-    const execution = await pollExecutedTool(vg, toolExecutionId);
-    if (execution.status === "succeeded" && execution.results?.[0]) {
-      const preview = await enableAndPollPublicPreview({
-        fileId: execution.results[0].fileId,
-        waitForEmbedPlaybackId: false,
-      });
-      results.push({
-        type: "audio",
-        url: preview.publicPreviewUrl,
-        description: plan.speechText,
-      });
+    const result = await previewToolResult({
+      execution,
+      description: plan.speechText,
+      type: "audio",
+    });
+    if (result != null) {
+      results.push(result);
     }
   }
 

@@ -5,44 +5,33 @@ Each tool wraps a VideoGen SDK call and returns the hydrated file URL.
 """
 
 import os
-from collections.abc import Callable
 
-from videogen import VideoGenApi
-from videogen.poll_executed_tool import poll_executed_tool
-from videogen.upload_file import upload_file
+from videogen import VideoGen, VideoGenError, upload_file
 
 _videogen_api_url = os.environ.get("VIDEOGEN_API_URL")
-client = VideoGenApi(
-    token=os.environ["VIDEOGEN_API_KEY"],
+client = VideoGen(
+    api_key=os.environ["VIDEOGEN_API_KEY"],
     **({"base_url": _videogen_api_url} if _videogen_api_url not in (None, "") else {}),
 )
 
 EXAMPLE_IMAGE_QUALITY = "LOW"
 
 
-def _hydrated_download_url(hydrated) -> str | None:
-    ds = getattr(hydrated, "download_source", None)
-    if ds is None:
-        return None
-    url = getattr(ds, "url", None)
-    return url if isinstance(url, str) else None
-
-
-def _run_polled_image_tool(
-    failure_message: str,
-    start_fn: Callable[[], object],
-) -> dict:
-    response = start_fn()
-    execution = poll_executed_tool(client, response.tool_execution_id)
-
-    if execution.status != "succeeded" or not execution.results:
+def _succeeded_tool_result(execution: dict, failure_message: str) -> dict:
+    results = execution.get("results") or []
+    if not results:
         return {"status": "failed", "error": failure_message}
 
-    file_id = execution.results[0].file_id
-    hydrated = client.files.hydrate_file(file_id=file_id)
-    url = _hydrated_download_url(hydrated)
+    first = results[0]
+    file_id = first.get("file_id")
+    if file_id is None:
+        return {"status": "failed", "error": failure_message}
 
-    return {"status": "succeeded", "file_id": file_id, "url": url}
+    return {
+        "status": "succeeded",
+        "file_id": file_id,
+        "url": first.get("download_url"),
+    }
 
 
 def generate_image(prompt: str) -> dict:
@@ -54,10 +43,14 @@ def generate_image(prompt: str) -> dict:
     Returns:
         Dictionary with file_id and download URL.
     """
-    return _run_polled_image_tool(
-        "Image generation failed",
-        lambda: client.tools.generate_image(prompt=prompt, quality=EXAMPLE_IMAGE_QUALITY),
-    )
+    try:
+        execution = client.tools.generate_image_and_wait(
+            prompt=prompt,
+            quality=EXAMPLE_IMAGE_QUALITY,
+        )
+    except VideoGenError:
+        return {"status": "failed", "error": "Image generation failed"}
+    return _succeeded_tool_result(execution, "Image generation failed")
 
 
 def transform_image(file_id: str, prompt: str) -> dict:
@@ -72,14 +65,15 @@ def transform_image(file_id: str, prompt: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL.
     """
-    return _run_polled_image_tool(
-        "Image transformation failed",
-        lambda: client.tools.generate_image(
+    try:
+        execution = client.tools.generate_image_and_wait(
             prompt=prompt,
             image_file_ids=[file_id],
             quality=EXAMPLE_IMAGE_QUALITY,
-        ),
-    )
+        )
+    except VideoGenError:
+        return {"status": "failed", "error": "Image transformation failed"}
+    return _succeeded_tool_result(execution, "Image transformation failed")
 
 
 def vectorize_image(file_id: str) -> dict:
@@ -91,10 +85,13 @@ def vectorize_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL for the SVG.
     """
-    return _run_polled_image_tool(
-        "Vectorization failed",
-        lambda: client.tools.vectorize_image(image_storage_file_id=file_id),
-    )
+    try:
+        execution = client.tools.vectorize_image_and_wait(
+            image_file_id=file_id,
+        )
+    except VideoGenError:
+        return {"status": "failed", "error": "Vectorization failed"}
+    return _succeeded_tool_result(execution, "Vectorization failed")
 
 
 def remove_background(file_id: str) -> dict:
@@ -106,10 +103,13 @@ def remove_background(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL (transparent PNG).
     """
-    return _run_polled_image_tool(
-        "Background removal failed",
-        lambda: client.tools.remove_image_background(image_storage_file_id=file_id),
-    )
+    try:
+        execution = client.tools.remove_image_background_and_wait(
+            image_file_id=file_id,
+        )
+    except VideoGenError:
+        return {"status": "failed", "error": "Background removal failed"}
+    return _succeeded_tool_result(execution, "Background removal failed")
 
 
 def upscale_image(file_id: str) -> dict:
@@ -121,10 +121,13 @@ def upscale_image(file_id: str) -> dict:
     Returns:
         Dictionary with the new file_id and download URL.
     """
-    return _run_polled_image_tool(
-        "Upscaling failed",
-        lambda: client.tools.upscale_image(image_storage_file_id=file_id),
-    )
+    try:
+        execution = client.tools.upscale_image_and_wait(
+            image_file_id=file_id,
+        )
+    except VideoGenError:
+        return {"status": "failed", "error": "Upscaling failed"}
+    return _succeeded_tool_result(execution, "Upscaling failed")
 
 
 def search_files(query: str) -> dict:
@@ -138,13 +141,13 @@ def search_files(query: str) -> dict:
     """
     response = client.files.search_files(query=query)
     files = []
-    for result in response.results[:5]:
-        f = result.file
+    for result in (response.get("results") or [])[:5]:
+        f = result.get("file") or {}
         files.append(
             {
-                "file_id": f.file_id,
-                "display_name": f.display_name,
-                "type": f.type,
+                "file_id": f.get("file_id"),
+                "display_name": f.get("display_name"),
+                "type": f.get("type"),
             }
         )
     return {"status": "succeeded", "files": files}
@@ -161,11 +164,11 @@ def upload_image(file_path: str) -> dict:
     """
     display_name = os.path.basename(file_path)
     with open(file_path, "rb") as f:
-        hydrated = upload_file(
+        uploaded = upload_file(
             client,
             f,
             display_name=display_name,
             type="IMAGE",
         )
 
-    return {"status": "succeeded", "file_id": hydrated.file_id}
+    return {"status": "succeeded", "file_id": uploaded.get("file_id")}
