@@ -31,13 +31,13 @@ Once a generation starts, it can't be edited — the only editable surface is th
 
 The public script-to-video API is intentionally small, so the form wraps exactly what you can drive today:
 
-| Option        | Where         | Presets                                            |
-| ------------- | ------------- | -------------------------------------------------- |
-| Script/topic  | workflow      | free text                                          |
-| Aspect ratio  | workflow      | 16:9, 9:16, 1:1                                    |
-| Export quality| export        | Standard, High, Full HD, Ultra (4K)                |
+| Option         | Where    | Presets                             |
+| -------------- | -------- | ----------------------------------- |
+| Script/topic   | workflow | free text                           |
+| Aspect ratio   | workflow | 16:9, 9:16, 1:1                     |
+| Export quality | export   | Standard, High, Full HD, Ultra (4K) |
 
-> Voice, captions, and music beyond the defaults aren't exposed in the form yet — the backend uses an AI image visual style plus caption and transition remix actions on every run.
+> Voice, captions, and music beyond the defaults aren't exposed in the form yet — the backend uses an AI image visual style plus caption and transition video edits on every run.
 
 ## VideoGen endpoints used
 
@@ -97,23 +97,23 @@ Everything works on polling alone. To also use webhooks:
 
 ### `server/.env`
 
-| Variable                  | Required | Description                                            |
-| ------------------------- | -------- | ------------------------------------------------------ |
-| `VIDEOGEN_API_KEY`        | yes      | Your VideoGen developer API key                        |
-| `VIDEOGEN_API_URL`        | no       | Override the API base URL                              |
-| `WEBHOOK_PUBLIC_URL`      | no       | Public URL to auto-register a webhook endpoint         |
-| `VIDEOGEN_WEBHOOK_SECRET` | no       | Reuse a known signing secret instead of registering    |
-| `PORT`                    | no       | Backend port (default 4100)                            |
-| `WEB_ORIGIN`              | no       | Allowed CORS origin (default http://localhost:3000)    |
-| `FIREBASE_PROJECT_ID`     | no       | Emulator project id (default `demo-script-to-video`)   |
+| Variable                  | Required | Description                                          |
+| ------------------------- | -------- | ---------------------------------------------------- |
+| `VIDEOGEN_API_KEY`        | yes      | Your VideoGen developer API key                      |
+| `VIDEOGEN_API_URL`        | no       | Override the API base URL                            |
+| `WEBHOOK_PUBLIC_URL`      | no       | Public URL to auto-register a webhook endpoint       |
+| `VIDEOGEN_WEBHOOK_SECRET` | no       | Reuse a known signing secret instead of registering  |
+| `PORT`                    | no       | Backend port (default 4100)                          |
+| `WEB_ORIGIN`              | no       | Allowed CORS origin (default http://localhost:3000)  |
+| `FIREBASE_PROJECT_ID`     | no       | Emulator project id (default `demo-script-to-video`) |
 
 ### `web/.env.local`
 
-| Variable                          | Description                                  |
-| --------------------------------- | -------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL`        | Backend base URL                             |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Must match the backend's project id          |
-| `NEXT_PUBLIC_USE_EMULATORS`       | `true` for local emulators                   |
+| Variable                          | Description                         |
+| --------------------------------- | ----------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL`        | Backend base URL                    |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Must match the backend's project id |
+| `NEXT_PUBLIC_USE_EMULATORS`       | `true` for local emulators          |
 
 ## Notes
 

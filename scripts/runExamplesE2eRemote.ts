@@ -23,8 +23,9 @@
  *   - Node + npm, Python 3, Java 11+ (Firebase emulators), Playwright browsers.
  */
 
-import { buildRemoteExamplesEnvSetup } from "../../api/scripts/remote-examples-setup.js";
+import { getTestSampleRatePercent } from "@videogen/base";
 import { waitForDeveloperApiHealth } from "../../api/scripts/local-examples-provision.js";
+import { buildRemoteExamplesEnvSetup } from "../../api/scripts/remote-examples-setup.js";
 import { runExampleE2eCases } from "./examplesE2eCases.js";
 import { parseOnlyArg, printReport } from "./examplesE2eRunnerShared.js";
 
@@ -53,6 +54,12 @@ async function main(): Promise<void> {
   console.log("Writing example env files (pointed at the deployed API)...");
   const setup = buildRemoteExamplesEnvSetup({ apiKey, baseUrl, openAiApiKey });
   console.log(`VideoGen API key: ${apiKey.slice(0, 8)}...`);
+  const sampleRatePercent = getTestSampleRatePercent();
+  if (sampleRatePercent < 100) {
+    console.log(
+      `Credit sampling at ${sampleRatePercent}%: each independent credit-costing example case may be skipped this run.`,
+    );
+  }
   console.log(`Running cases: ${only.join(", ")}\n`);
 
   const results = await runExampleE2eCases({ setup, only });

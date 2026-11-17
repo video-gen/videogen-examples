@@ -1,3 +1,4 @@
+import { getShouldRunSampledTestCase } from "@videogen/base";
 import { chromium } from "@playwright/test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +27,7 @@ export type ExampleE2eCaseResult = {
   id: string;
   label: string;
   passed: boolean;
+  skipped: boolean;
   durationMs: number;
   errorMessage: string | null;
 };
@@ -69,6 +71,7 @@ const runCase = async ({
       id,
       label,
       passed: true,
+      skipped: false,
       durationMs: Date.now() - startedAt,
       errorMessage: null,
     };
@@ -78,6 +81,7 @@ const runCase = async ({
       id,
       label,
       passed: false,
+      skipped: false,
       durationMs: Date.now() - startedAt,
       errorMessage: message,
     };
@@ -594,6 +598,28 @@ export const ALL_EXAMPLE_E2E_CASES = [
 
 export type ExampleE2eCaseId = (typeof ALL_EXAMPLE_E2E_CASES)[number];
 
+const SAMPLED_OUT_DETAIL = "sampled out this run, TEST_SAMPLE_RATE_PERCENT";
+
+const EXAMPLE_E2E_CASE_LABELS: Record<ExampleE2eCaseId, string> = {
+  "ai-social-content": "AI Social Content Generator",
+  "talking-avatar-webhook": "Talking Avatar Webhook Server",
+  "ai-image-editor": "AI Image Editor",
+  "script-to-video-studio": "Script to Video Studio",
+};
+
+const getSampledOutExampleE2eCaseResult = ({
+  id,
+}: {
+  id: ExampleE2eCaseId;
+}): ExampleE2eCaseResult => ({
+  id,
+  label: EXAMPLE_E2E_CASE_LABELS[id],
+  passed: true,
+  skipped: true,
+  durationMs: 0,
+  errorMessage: SAMPLED_OUT_DETAIL,
+});
+
 export const runExampleE2eCases = async ({
   setup,
   only,
@@ -605,19 +631,35 @@ export const runExampleE2eCases = async ({
   const results: ExampleE2eCaseResult[] = [];
 
   if (selected.has("ai-social-content")) {
-    results.push(await runAiSocialContentHappyPath({ setup }));
+    results.push(
+      getShouldRunSampledTestCase()
+        ? await runAiSocialContentHappyPath({ setup })
+        : getSampledOutExampleE2eCaseResult({ id: "ai-social-content" }),
+    );
   }
 
   if (selected.has("talking-avatar-webhook")) {
-    results.push(await runTalkingAvatarHappyPath({ setup }));
+    results.push(
+      getShouldRunSampledTestCase()
+        ? await runTalkingAvatarHappyPath({ setup })
+        : getSampledOutExampleE2eCaseResult({ id: "talking-avatar-webhook" }),
+    );
   }
 
   if (selected.has("ai-image-editor")) {
-    results.push(await runAiImageEditorHappyPath({ setup }));
+    results.push(
+      getShouldRunSampledTestCase()
+        ? await runAiImageEditorHappyPath({ setup })
+        : getSampledOutExampleE2eCaseResult({ id: "ai-image-editor" }),
+    );
   }
 
   if (selected.has("script-to-video-studio")) {
-    results.push(await runScriptToVideoStudioHappyPath({ setup }));
+    results.push(
+      getShouldRunSampledTestCase()
+        ? await runScriptToVideoStudioHappyPath({ setup })
+        : getSampledOutExampleE2eCaseResult({ id: "script-to-video-studio" }),
+    );
   }
 
   return results;

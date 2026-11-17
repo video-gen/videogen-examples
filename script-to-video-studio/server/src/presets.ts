@@ -1,5 +1,5 @@
 // The public script-to-video workflow requires `script` and `visualStyle`; we
-// also pass a couple of remix actions and optional `aspectRatio`. Export accepts
+// also pass a couple of video edits and optional `aspectRatio`. Export accepts
 // a `quality` tier. We expose aspect ratio and export quality as friendly
 // presets — the full surface an indie dev can drive from the public API today.
 
@@ -21,13 +21,23 @@ export const QUALITY_PRESETS = [
 
 export type QualityPresetId = (typeof QUALITY_PRESETS)[number]["id"];
 
-export function resolveAspectRatio(id: string): { width: number; height: number } {
-  const preset = ASPECT_RATIO_PRESETS.find((option) => option.id === id) ?? ASPECT_RATIO_PRESETS[0];
+export function resolveAspectRatio(id: string): {
+  width: number;
+  height: number;
+} {
+  const preset =
+    ASPECT_RATIO_PRESETS.find((option) => option.id === id) ??
+    ASPECT_RATIO_PRESETS[0];
   return { width: preset.width, height: preset.height };
 }
 
-export function resolveAspectRatioPreset(id: string): (typeof ASPECT_RATIO_PRESETS)[number] {
-  return ASPECT_RATIO_PRESETS.find((option) => option.id === id) ?? ASPECT_RATIO_PRESETS[0];
+export function resolveAspectRatioPreset(
+  id: string,
+): (typeof ASPECT_RATIO_PRESETS)[number] {
+  return (
+    ASPECT_RATIO_PRESETS.find((option) => option.id === id) ??
+    ASPECT_RATIO_PRESETS[0]
+  );
 }
 
 export function resolveQuality(id: string): QualityPresetId {
@@ -35,6 +45,10 @@ export function resolveQuality(id: string): QualityPresetId {
   return preset?.id ?? "HIGH";
 }
 
-export function resolveQualityPreset(id: QualityPresetId): (typeof QUALITY_PRESETS)[number] {
-  return QUALITY_PRESETS.find((option) => option.id === id) ?? QUALITY_PRESETS[1];
+export function resolveQualityPreset(
+  id: QualityPresetId,
+): (typeof QUALITY_PRESETS)[number] {
+  return (
+    QUALITY_PRESETS.find((option) => option.id === id) ?? QUALITY_PRESETS[1]
+  );
 }

@@ -28,7 +28,11 @@ app.use(cors({ origin: env.webOrigin }));
 
 // The webhook route needs the raw body for signature verification, so it is
 // mounted with a raw body parser BEFORE the JSON parser below.
-app.post("/api/webhooks/videogen", express.raw({ type: "*/*" }), handleVideoGenWebhook);
+app.post(
+  "/api/webhooks/videogen",
+  express.raw({ type: "*/*" }),
+  handleVideoGenWebhook,
+);
 
 app.use(express.json());
 
@@ -61,8 +65,10 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
 
-  const aspectRatioId = typeof body.aspectRatioId === "string" ? body.aspectRatioId : "landscape";
-  const qualityId = typeof body.qualityId === "string" ? body.qualityId : "HIGH";
+  const aspectRatioId =
+    typeof body.aspectRatioId === "string" ? body.aspectRatioId : "landscape";
+  const qualityId =
+    typeof body.qualityId === "string" ? body.qualityId : "HIGH";
 
   const aspectRatio = resolveAspectRatio(aspectRatioId);
   const aspectPreset = resolveAspectRatioPreset(aspectRatioId);
@@ -100,13 +106,19 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
       aspectRatio,
       visualStyle: {
         type: "AI_IMAGE",
-        aiStyle: "loose watercolor illustration with visible brushstrokes and soft color bleeds",
+        aiStyle:
+          "Loose watercolor illustration, visible brushstrokes, soft color bleeds, paper texture, muted palette. A clear uncluttered subject centered in the frame, occupying only the middle half of the image, with generous empty margins on all four sides, no background clutter.",
         restyleFeaturedBRollWithAiStyle: true,
       },
       quality: "HIGH",
-      remixActions: [
+      autoExport: true,
+      videoEdits: [
         { type: "ENABLE_CAPTIONS" },
-        { type: "ADD_TRANSITIONS", sectionTransition: "DYNAMIC", assetTransition: "FADE" },
+        {
+          type: "ADD_TRANSITIONS",
+          sectionTransition: "DYNAMIC",
+          assetTransition: "FADE",
+        },
       ],
     });
     await ref.update({
@@ -122,7 +134,9 @@ app.post("/api/generations", requireAuth, async (req: AuthedRequest, res) => {
       error: errMessage(err),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    res.status(502).json({ error: "Failed to start generation.", detail: errMessage(err) });
+    res
+      .status(502)
+      .json({ error: "Failed to start generation.", detail: errMessage(err) });
     return;
   }
 
@@ -150,7 +164,10 @@ app.post(
     try {
       await refreshExportUrls(id);
     } catch (err) {
-      console.error(`[server] failed to refresh export urls for ${id}:`, errMessage(err));
+      console.error(
+        `[server] failed to refresh export urls for ${id}:`,
+        errMessage(err),
+      );
     }
 
     res.json({ ok: true });
@@ -159,7 +176,11 @@ app.post(
 
 app.listen(env.port, () => {
   console.log(`[server] listening on http://localhost:${env.port}`);
-  console.log(`[server] Firestore emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`);
-  console.log(`[server] Auth emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
+  console.log(
+    `[server] Firestore emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`,
+  );
+  console.log(
+    `[server] Auth emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`,
+  );
   void ensureWebhookEndpoint();
 });

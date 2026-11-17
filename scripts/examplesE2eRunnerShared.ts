@@ -47,7 +47,7 @@ export const printReport = ({
   console.log("\n=== examples E2E report ===\n");
 
   for (const result of results) {
-    const status = result.passed ? "PASS" : "FAIL";
+    const status = result.skipped ? "SKIP" : result.passed ? "PASS" : "FAIL";
     const seconds = Math.round(result.durationMs / 1000);
     console.log(`${status}  ${result.label} (${seconds}s)`);
     if (result.errorMessage != null) {
@@ -56,7 +56,9 @@ export const printReport = ({
   }
 
   const failed = results.filter((result) => !result.passed).length;
+  const skipped = results.filter((result) => result.skipped).length;
+  const passed = results.filter((result) => result.passed && !result.skipped).length;
   console.log(
-    `\n${results.length - failed}/${results.length} passed · total ${Math.round(totalDurationMs / 1000)}s\n`,
+    `\n${passed} passed, ${skipped} skipped, ${failed} failed · total ${Math.round(totalDurationMs / 1000)}s\n`,
   );
 };
